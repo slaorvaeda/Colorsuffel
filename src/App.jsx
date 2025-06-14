@@ -9,7 +9,7 @@ function App() {
   return (
     <>
       <Navbar />
-      <div className="bg-gray-50 m-4 dark:text-black rounded-2xl min-h-[80vh] pb-4 ">
+      <div className="bg-gray-50  m-4 dark:text-black rounded-2xl min-h-[80vh] pb-4 ">
         <Outlet />
       </div>
       <Contactstaze />

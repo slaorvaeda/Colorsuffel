@@ -46,22 +46,22 @@ const Home = () => {
   };
 
   return (
-    <div className="bg-gradient-to-br rounded-2xl from-zinc-50 to-white text-gray-800 font-inter relative w-full">
+    <div className="bg-gradient-to-br rounded-2xl from-zinc-50  dark:bg-transparent text-gray-800 font-inter relative w-full">
       {/* Parallax background */}
       <div className="parallax-bg pointer-events-none fixed top-0 left-0 w-full md:h-[150vh] -z-10 overflow-hidden">
         <div className="color-waterfall absolute w-[200%] h-[200%] bg-gradient-to-br from-purple-400 via-blue-400 via-green-400 via-yellow-400 to-red-400 bg-[length:300%_300%] animate-colorFlow filter blur-[80px] opacity-40 rotate-[15deg]"></div>
       </div>
 
       {/* Hero Section */}
-      <section className="relative h-screen md:h-[90vh] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
+      <section className="relative  md:h-[90vh] flex flex-col items-center justify-center text-center md:px-6 overflow-hidden">
         {/* Decorative gradient blob */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2  h-[32rem] bg-gradient-to-tr from-indigo-300/40 via-purple-200/40 to-pink-200/30 rounded-full blur-3xl -z-10"></div>
         {/* Glassmorphism Card */}
         <div
           ref={heroCardRef}
-          className="relative z-10 w-full max-w-screen px-8 py-14 md:py-20 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl ring-1 ring-indigo-100/60 mx-auto flex flex-col items-center will-change-transform transition-transform duration-300"
+          className="relative z-10 w-full max-w-screen px-8 py-14 md:py-20 bg-white/60 dark:bg-sky-300/60 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl ring-1 ring-indigo-100/60 mx-auto flex flex-col items-center will-change-transform transition-transform duration-300"
         >
-          <span className="uppercase tracking-widest text-xs md:text-sm text-indigo-500 font-semibold mb-4">AI Color Generator</span>
+          <span className="uppercase tracking-widest text-xs md:text-sm text-indigo-500 font-semibold mb-4">Auto Color Generator</span>
           <h1
             ref={heroTitleRef}
             id="hero-title"
@@ -72,9 +72,9 @@ const Home = () => {
           <p
             ref={heroDescRef}
             id="hero-desc"
-            className="text-lg md:text-xl text-gray-700 dark:text-gray-200 max-w-2xl mb-8 opacity-0"
+            className="text-lg md:text-xl text-gray-700 dark:text-gray-500 max-w-2xl mb-8 opacity-0"
           >
-            Get <span className="font-semibold text-indigo-600">AI-curated</span> color combinations that elevate your creative work.<br className="hidden md:inline" /> Fast. Intuitive. Stunning.
+            Get <span className="font-semibold text-indigo-600">Auto-curated</span> color combinations that elevate your creative work.<br className="hidden md:inline" /> Fast. Intuitive. Stunning.
           </p>
           <button
             ref={heroBtnRef}
@@ -155,13 +155,13 @@ const Home = () => {
               <p className="text-gray-600 italic">
                 “ColorSuggest made my portfolio shine. The palettes just work.”
               </p>
-              <div className="mt-6 font-semibold text-indigo-600">– Alex, UI Designer</div>
+              <div className="mt-6 font-semibold text-indigo-600">– Durga, Creative Director </div>
             </div>
             <div className="p-8 bg-zinc-50 rounded-2xl shadow-md">
               <p className="text-gray-600 italic">
                 “I use it every week. It's fast, inspiring, and surprisingly accurate.”
               </p>
-              <div className="mt-6 font-semibold text-indigo-600">– Maya, Creative Director</div>
+              <div className="mt-6 font-semibold text-indigo-600">- Anibesh,  Photographer</div>
             </div>
           </div>
         </div>

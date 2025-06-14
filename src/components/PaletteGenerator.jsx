@@ -16,20 +16,55 @@ const hexToRgb = (hex) => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
-// const savePaletteAsJSON = (colors) => {
-//   const palette = colors.map((color) => ({ hex: color, rgb: hexToRgb(color) }));
-//   const blob = new Blob([JSON.stringify(palette, null, 2)], { type: "application/json" });
-//   const link = document.createElement("a");
-//   link.href = URL.createObjectURL(blob);
-//   link.download = "color_palette.json";
-//   link.click();
-// };
+// Generate harmonious colors for a palette group
+const generateHarmoniousGroup = () => {
+  // Pick a random base HSL color
+  const baseHue = Math.floor(Math.random() * 360);
+  const baseSaturation = Math.floor(Math.random() * 21) + 70; // 75-95% (more vibrant)
+  const baseLightness = Math.floor(Math.random() * 16) + 50; // 50-65% (less faded)
+
+  // Helper to convert HSL to RGB string
+  const hslToRgbString = (h, s, l) => {
+    h = h / 360;
+    s = s / 100;
+    l = l / 100;
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+  };
+
+  // Generate 5 harmonious colors by varying hue/sat/lightness slightly
+  return Array(5).fill().map((_, i) => {
+    const hue = (baseHue + (i * 10) + Math.floor(Math.random() * 8 - 4)) % 360;
+    const sat = Math.min(100, Math.max(60, baseSaturation + Math.floor(Math.random() * 11 - 5)));
+    const light = Math.min(80, Math.max(45, baseLightness + Math.floor(Math.random() * 9 - 4)));
+    return hslToRgbString(hue, sat, light);
+  });
+};
 
 const PaletteGenerator = () => {
-  const [colors, setColors] = useState(Array(210).fill().map(generateRandomColor));
+  // Generate 42 groups of 5 harmonious colors (total 210)
+  const [colors, setColors] = useState(Array(42).fill().flatMap(generateHarmoniousGroup));
+  const [openGroupIdx, setOpenGroupIdx] = useState(null);
 
   const generateNewPalette = () => {
-    setColors(Array(210).fill().map(generateRandomColor));
+    setColors(Array(42).fill().flatMap(generateHarmoniousGroup));
   };
 
   const copyToClipboard = (color) => {
@@ -44,25 +79,61 @@ const PaletteGenerator = () => {
 
   return (
     <div className="flex flex-col items-center p-5">
-        <h1 className="text-3xl font-bold mb-5">Color Palette Generator</h1>
-   
+      <h1 className="text-3xl font-bold mb-5">Color Palette Generator</h1>
       <div className="flex flex-wrap justify-center gap-8">
         {groupedColors.map((group, index) => (
-          <div key={index} className="flex flex-col items-center border p-1 rounded-lg shadow-md border-gray-200">
-            {/* <h3 className="flex mb-2 text-lg font-semibold">Palette {index + 1}</h3> */}
-            <div className="flex bg-amber-200 rounded-lg overflow-hidden">
-            <div className="flex rounded">
-              {group.map((color, idx) => (
-                <div key={idx} className="w-16 h-16 flex flex-col items-center justify-center shadow-lg cursor-pointer transition-all duration-300 hover:w-20 " style={{ backgroundColor: color }} 
-                  onClick={() => copyToClipboard(color)}
-                >
-                  {/* <span className="text-white font-bold text-xs ">{color}</span>
-                  <span className="text-white text-xs">{hexToRgb(color)}</span> */}
+          <div key={index} className="flex flex-col items-center border p-1 rounded-lg shadow-md border-gray-200 relative">
+            <div
+              className="flex bg-amber-200 rounded-lg overflow-hidden cursor-pointer"
+              onClick={() => setOpenGroupIdx(index)}
+            >
+              <div className="flex rounded">
+                {group.map((color, idx) => (
+                  <div
+                    key={idx}
+                    className="w-16 h-16 flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:w-20"
+                    style={{ backgroundColor: color }}
+                    onClick={e => { e.stopPropagation(); setOpenGroupIdx(index); }}
+                  >
+                    {/* <span className="text-white font-bold text-xs ">{color}</span>
+                    <span className="text-white text-xs">{hexToRgb(color)}</span> */}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Modal for showing all colors in the group */}
+            {openGroupIdx === index && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setOpenGroupIdx(null)}>
+                <div className="bg-white border-0 rounded-2xl shadow-2xl p-6 flex flex-col items-center min-w-[340px] max-w-[90vw] relative animate-fadeIn" onClick={e => e.stopPropagation()}>
+                  <button className="absolute top-3 right-3 text-gray-400 hover:text-gray-900 text-3xl font-bold transition-colors" onClick={() => setOpenGroupIdx(null)} aria-label="Close">&times;</button>
+                  <h2 className="text-lg font-semibold mb-4 tracking-wide text-gray-700">Palette Colors</h2>
+                  <div className="flex gap-3 mb-4">
+                    {group.map((color, idx) => (
+                      <div key={idx} className="w-14 h-14 rounded-xl shadow-lg border border-gray-200 transition-transform hover:scale-110" style={{ backgroundColor: color }}></div>
+                    ))}
+                  </div>
+                  <button
+                    className="mb-4 px-4 py-1 bg-gradient-to-r from-amber-400 to-yellow-200 text-gray-900 rounded-lg font-semibold shadow hover:from-yellow-200 hover:to-amber-400 transition-colors ease-[cubic-bezier(.22,.84,1,.12)]"
+                    onClick={() => {
+                      const colorObj = {};
+                      group.forEach((color, idx) => { colorObj[`color${idx+1}`] = color; });
+                      navigator.clipboard.writeText(JSON.stringify(colorObj, null, 2));
+                      alert('Copied The palette');
+                    }}
+                  >
+                    Copy the Palette
+                  </button>
+                  <div className="flex flex-col gap-2 w-full">
+                    {group.map((color, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs font-mono bg-gray-50 rounded px-3 py-1">
+                        <span className="truncate" title={color}>{color}</span>
+                        <button className="ml-2 px-2 py-0.5 bg-gradient-to-r from-amber-300 to-yellow-200 text-gray-800 rounded hover:from-yellow-200 hover:to-amber-300 shadow transition-colors" onClick={() => copyToClipboard(color)}>Copy</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-              ))}
-            </div>
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -71,3 +142,4 @@ const PaletteGenerator = () => {
 };
 
 export default PaletteGenerator;
+
