@@ -1,7 +1,7 @@
 import React from 'react';
 import tinycolor from 'tinycolor2';
 import { FaRegHeart } from "react-icons/fa";
-
+import 'aos/dist/aos.css';
 
 function ColorPalette({ color, onLike }) { // Add onLike prop
   const generateShadesAndTints = (baseColor) => {
@@ -24,13 +24,13 @@ function ColorPalette({ color, onLike }) { // Add onLike prop
   };
 
   return (
-    <div>
+    <div data-aos="fade-up">
       <div className='flex justify-center items-center m-auto' >
         <p>{color}</p>
       </div>
       <div className='h-full'>
-        <h3 className='text-center text-4xl p-4 '>Shades and Tints</h3>
-        <div className='flex flex-wrap justify-center items-center m-auto max-w-[660px] '>
+        <h3 className='text-center text-4xl p-4 ' data-aos="fade-down">Shades and Tints</h3>
+        <div className='flex flex-wrap justify-center items-center m-auto max-w-[660px] ' data-aos="zoom-in" >
           {shadesAndTints.map((col, index) => (
             <div
               key={index}
@@ -43,7 +43,6 @@ function ColorPalette({ color, onLike }) { // Add onLike prop
                 onClick={(e) => { e.stopPropagation(); onLike(col); }}
               >
                 <FaRegHeart />
-                
               </button>
             </div>
           ))}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import ColorPalette from './shade/ColorPalette';
-import ColorPicker from './shade/ColorPicker';
+import ColorPalette from '../components/shade/ColorPalette';
+import ColorPicker from '../components/shade/ColorPicker';
 import Likeshade from './Likeshade';
 
 function ShadeandTint() {

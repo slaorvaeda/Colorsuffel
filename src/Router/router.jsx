@@ -1,11 +1,12 @@
 import { createBrowserRouter } from "react-router-dom";
-import ShadeandTint from "../components/ShadeandTint";
 import App from "../App";
-import Home from "../components/Home";
-import Gradientgen from "../components/Gradientgen";
-import Likeshade from "../components/Likeshade";
-import PaletteGenerator from "../components/PaletteGenerator";
 import Contact from "../components/Contact";
+import Home from "../pages/Home";
+import ShadeandTint from "../pages/ShadeandTint";
+import Likeshade from "../pages/Likeshade";
+import Gradientgen from "../pages/Gradientgen";
+import PaletteGenerator from "../pages/PaletteGenerator";
+import PagenotFound from "../pages/PagenotFound";
 
 const router = createBrowserRouter([
     {
@@ -38,7 +39,7 @@ const router = createBrowserRouter([
             },
             {
                 path: "*",
-                element: <h1>Page not found</h1>    
+                element: <PagenotFound />   
             }
         ]
 

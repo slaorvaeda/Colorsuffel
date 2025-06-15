@@ -62,6 +62,7 @@ const PaletteGenerator = () => {
   // Generate 42 groups of 5 harmonious colors (total 210)
   const [colors, setColors] = useState(Array(42).fill().flatMap(generateHarmoniousGroup));
   const [openGroupIdx, setOpenGroupIdx] = useState(null);
+  const [showInfo, setShowInfo] = useState(true); // Info box state
 
   const generateNewPalette = () => {
     setColors(Array(42).fill().flatMap(generateHarmoniousGroup));
@@ -79,6 +80,20 @@ const PaletteGenerator = () => {
 
   return (
     <div className="flex flex-col items-center p-5">
+      {/* Info/instruction box for user */}
+      {showInfo && (
+        <div className="w-full max-w-lg mx-auto mb-4 bg-blue-50 border border-blue-200 rounded-xl shadow p-3 flex items-center gap-3 relative" data-aos="fade-up">
+          <svg className="w-6 h-6 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-4m0-4h.01"/></svg>
+          <span className="text-blue-700 text-sm font-medium">Tip: Click any palette to preview and copy all colors. Use the reload button to generate a new palette!</span>
+          <button
+            className="absolute top-2 right-2 text-red-400 hover:text-red-700 text-lg font-bold px-2 py-0.5 rounded transition-colors"
+            aria-label="Close info box"
+            onClick={() => setShowInfo(false)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <h1 className="text-3xl font-bold mb-5">Color Palette Generator</h1>
       <div className="flex flex-wrap justify-center gap-8">
         {groupedColors.map((group, index) => (
