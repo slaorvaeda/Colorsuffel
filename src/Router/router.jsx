@@ -6,6 +6,8 @@ import ShadeandTint from "../pages/ShadeandTint";
 import Likeshade from "../pages/Likeshade";
 import Gradientgen from "../pages/Gradientgen";
 import PaletteGenerator from "../pages/PaletteGenerator";
+import ImageColorPicker from "../pages/ImageColorPicker";
+import ColorNames from "../pages/ColorNames";
 import PagenotFound from "../pages/PagenotFound";
 
 const router = createBrowserRouter([
@@ -32,6 +34,14 @@ const router = createBrowserRouter([
             {
                 path: "/pallet",
                 element: <PaletteGenerator />
+            },
+            {
+                path: "/image-picker",
+                element: <ImageColorPicker />
+            },
+            {
+                path: "/color-names",
+                element: <ColorNames />
             },
             {
                 path: "/contact",

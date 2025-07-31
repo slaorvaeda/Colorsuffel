@@ -76,16 +76,16 @@ const Home = () => {
           >
             Get <span className="font-semibold text-indigo-600">Auto-curated</span> color combinations that elevate your creative work.<br className="hidden md:inline" /> Fast. Intuitive. Stunning.
           </p>
-          <button
+          <a
             ref={heroBtnRef}
-            id="hero-btn"
+            href="/image-picker"
             className="group bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl transition-opacity opacity-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <svg className="w-5 h-5 mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
             </svg>
-            Try It Now
-          </button>
+            Try Image Picker
+          </a>
           <div className="mt-12">
             <button
               id="scroll-btn"
@@ -101,23 +101,29 @@ const Home = () => {
 
       {/* Features Section */}
       <section id="features" className="py-20 px-6 bg-white font-clash">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10 text-center">
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
             <h3 className="text-2xl font-semibold mb-3">🎨 Smart Suggestions</h3>
             <p className="text-gray-600">
               Auto-powered palettes tailored to your project theme or keyword.
             </p>
           </div>
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg">
+          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
             <h3 className="text-2xl font-semibold mb-3">📦 Export Friendly</h3>
             <p className="text-gray-600">
               One-click exports in HEX, RGB, SCSS, and JSON formats for devs and designers.
             </p>
           </div>
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg">
+          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
             <h3 className="text-2xl font-semibold mb-3">🧠 Accessibility First</h3>
             <p className="text-gray-600">
               Palettes crafted with accessibility in mind for WCAG compliance.
+            </p>
+          </div>
+          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
+            <h3 className="text-2xl font-semibold mb-3">🖼️ Image Color Picker</h3>
+            <p className="text-gray-600">
+              Upload images and extract beautiful color palettes instantly with our advanced color extraction tool.
             </p>
           </div>
         </div>
@@ -179,10 +185,10 @@ const Home = () => {
             Start exploring beautiful, AI-curated colors for your next project in seconds.
           </p>
           <a
-            href="#"
+            href="/image-picker"
             className="inline-block bg-white text-indigo-700 font-semibold px-6 py-3 rounded-full shadow-md hover:bg-gray-100 transition"
           >
-            Get Started
+            Try Image Picker
           </a>
         </div>
       </section>
