@@ -120,19 +120,12 @@ function CustomColorPicker({ value, onChange, className = '' }) {
     }
   };
 
-  const handlePresetClick = (presetColor) => {
-    const color = tinycolor(presetColor);
-    const hsl = color.toHsl();
-    setHue(hsl.h);
-    setSaturation(hsl.s);
-    setLightness(hsl.l);
-    onChange(presetColor);
-  };
+
 
 
 
   return (
-    <div className={`relative z-[9999] ${className}`} ref={pickerRef}>
+    <div className={`relative z-10 ${className}`} ref={pickerRef}>
       {/* Color Preview Button */}
       <button
         type="button"
@@ -150,7 +143,7 @@ function CustomColorPicker({ value, onChange, className = '' }) {
 
       {/* Color Picker Dropdown */}
       {isOpen && (
-        <div className={`absolute top-full left-1/2 transform -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 sm:mt-3 bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 lg:p-6 min-w-[280px] sm:min-w-[320px] lg:min-w-[350px] max-w-[90vw] sm:max-w-none z-[10000]`}>
+        <div className={`absolute top-full left-1/2 transform -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 sm:mt-3 bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 lg:p-6 min-w-[280px] sm:min-w-[320px] lg:min-w-[500px] xl:min-w-[600px] max-w-[90vw] sm:max-w-none z-10`}>
           {/* Header */}
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Color Picker</h3>
@@ -166,42 +159,44 @@ function CustomColorPicker({ value, onChange, className = '' }) {
 
           {/* Color Preview */}
           <div className="mb-4 sm:mb-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
+            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-3 sm:gap-4 lg:gap-6">
               <div 
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-600"
+                className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-xl shadow-md border-2 border-gray-200 dark:border-gray-600"
                 style={{ backgroundColor: hexValue }}
               ></div>
-              <div className="flex-1 space-y-2 sm:space-y-3 w-full sm:w-auto">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">HEX</label>
-                  <input
-                    type="text"
-                    value={hexValue}
-                    onChange={handleHexInputChange}
-                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-mono bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="#000000"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">RGB</label>
-                  <input
-                    type="text"
-                    value={rgbValue}
-                    readOnly
-                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-mono bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg"
-                  />
+              <div className="flex-1 space-y-2 sm:space-y-3 w-full lg:w-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">HEX</label>
+                    <input
+                      type="text"
+                      value={hexValue}
+                      onChange={handleHexInputChange}
+                      className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-mono bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="#000000"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">RGB</label>
+                    <input
+                      type="text"
+                      value={rgbValue}
+                      readOnly
+                      className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-mono bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* HSL Sliders */}
-          <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+          <div className="space-y-3 sm:space-y-4 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-4 mb-4 sm:mb-6">
             {/* Hue Slider */}
             <div>
               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                 <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Hue</label>
-                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{hue}°</span>
+                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{parseFloat(hue.toFixed(3))}°</span>
               </div>
               <div className="relative">
                 <input
@@ -224,7 +219,7 @@ function CustomColorPicker({ value, onChange, className = '' }) {
             <div>
               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                 <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Saturation</label>
-                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{saturation}%</span>
+                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{parseFloat(saturation.toFixed(3))}%</span>
               </div>
               <div className="relative">
                 <input
@@ -247,7 +242,7 @@ function CustomColorPicker({ value, onChange, className = '' }) {
             <div>
               <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                 <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Lightness</label>
-                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{lightness}%</span>
+                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{parseFloat(lightness.toFixed(3))}%</span>
               </div>
               <div className="relative">
                 <input
@@ -267,25 +262,7 @@ function CustomColorPicker({ value, onChange, className = '' }) {
             </div>
           </div>
 
-          {/* Preset Colors */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-3 sm:pt-4">
-            <h4 className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Quick Colors</h4>
-            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 sm:gap-2">
-              {[
-                '#FF0000', '#FF8000', '#FFFF00', '#80FF00', '#00FF00', '#00FF80', '#00FFFF', '#0080FF',
-                '#0000FF', '#8000FF', '#FF00FF', '#FF0080', '#FF4040', '#FF8040', '#FFFF40', '#80FF40',
-                '#40FF40', '#40FF80', '#40FFFF', '#4080FF', '#4040FF', '#8040FF', '#FF40FF', '#FF4080'
-              ].map((presetColor, index) => (
-                <button
-                  key={index}
-                  onClick={() => handlePresetClick(presetColor)}
-                  className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:scale-110 transition-transform cursor-pointer"
-                  style={{ backgroundColor: presetColor }}
-                  title={presetColor}
-                ></button>
-              ))}
-            </div>
-          </div>
+
         </div>
       )}
     </div>

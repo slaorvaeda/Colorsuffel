@@ -25,8 +25,8 @@ function Likeshade({ onLike }) {
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8">
-            <h2 className="text-3xl font-bold text-center mb-8 text-gray-900 dark:text-white">
+        <div className=" p-8 mx-4">
+            <h2 className="text-3xl md:text-5xl font-bold text-center mb-8 text-gray-900 dark:text-indigo-500">
                 Your Favorite Colors
             </h2>
             
@@ -44,18 +44,20 @@ function Likeshade({ onLike }) {
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
                     {likedShades.map((shade, index) => {
-                        const isDark = tinycolor(shade).isDark();
+                        // Handle both string and object formats
+                        const colorValue = typeof shade === 'string' ? shade : shade.color;
+                        const isDark = tinycolor(colorValue).isDark();
                         return (
                             <div 
                                 key={index} 
                                 className="group relative bg-white dark:bg-gray-700 rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer"
-                                onClick={() => copyToClipboard(shade)}
-                                title={`Click to copy ${shade}`}
+                                onClick={() => copyToClipboard(colorValue)}
+                                title={`Click to copy ${colorValue}`}
                             >
                                 {/* Color Swatch */}
                                 <div 
                                     className="h-24 relative"
-                                    style={{ backgroundColor: shade }}
+                                    style={{ backgroundColor: colorValue }}
                                 >
                                     {/* Overlay on hover */}
                                     <div className="absolute inset-0  bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
@@ -68,8 +70,15 @@ function Likeshade({ onLike }) {
                                 {/* Color Information */}
                                 <div className="p-3">
                                     <p className={`text-xs font-mono font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {shade}
+                                        {colorValue}
                                     </p>
+                                    
+                                    {/* Show additional info if it's an object */}
+                                    {typeof shade === 'object' && shade.label && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                            {shade.label}
+                                        </p>
+                                    )}
                                     
                                     {/* Action Buttons */}
                                     <div className="flex items-center justify-between mt-2">
@@ -77,7 +86,7 @@ function Likeshade({ onLike }) {
                                             className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                copyToClipboard(shade);
+                                                copyToClipboard(colorValue);
                                             }}
                                         >
                                             Copy

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
+import CardListSlider from '../components/CardListSlider';
 
 function ColorNames() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -253,19 +254,19 @@ function ColorNames() {
     }
     
     return {
-      h: Math.round(h * 360),
-      s: Math.round(s * 100),
-      l: Math.round(l * 100)
+      h: parseFloat((h * 360).toFixed(3)),
+      s: parseFloat((s * 100).toFixed(3)),
+      l: parseFloat((l * 100).toFixed(3))
     };
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+    <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8" data-aos="fade-down">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Color Names Database
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 font-raleway bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+            HTML Color Names
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Explore thousands of color names with their hex codes, RGB values, and descriptions. 
@@ -292,7 +293,7 @@ function ColorNames() {
           </div>
 
           {/* Category Filter */}
-          <div className="flex flex-wrap justify-center gap-3">
+          <div className="flex flex-wrap justify-center items-center gap-3">
             {categories.map((category) => (
               <button
                 key={category.id}
@@ -310,36 +311,12 @@ function ColorNames() {
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex justify-center">
-            <div className="bg-white rounded-full p-1 shadow-lg">
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  viewMode === 'cards'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-                Cards
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  viewMode === 'list'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                </svg>
-                List
-              </button>
-            </div>
+          <div className="flex justify-center ">
+          <CardListSlider viewMode={viewMode} setViewMode={setViewMode} />
+
+
           </div>
+
         </div>
 
         {/* Color Display */}
@@ -549,6 +526,15 @@ function ColorNames() {
           </div>
         )}
       </div>
+      {/* Custom styles for animations */}
+      <style>
+        {`
+          @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800;900&display=swap");
+          .font-raleway {
+            font-family: 'Raleway', sans-serif;
+          }
+        `}
+      </style>
     </div>
   );
 }

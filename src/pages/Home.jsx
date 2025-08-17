@@ -1,258 +1,391 @@
 // ColorSuggest.jsx
-import React, { useEffect, useRef } from "react";
-import { gsap } from "gsap";
+import React, { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import * as THREE from "three";
+import AOS from 'aos';
+import 'aos/dist/aos.css';
+import ColorTable from '../components/ColorTable';
 
 const Home = () => {
-  const heroTitleRef = useRef(null);
-  const heroDescRef = useRef(null);
-  const heroBtnRef = useRef(null);
-  const heroCardRef = useRef(null);
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
 
   useEffect(() => {
-    gsap.to(heroTitleRef.current, { duration: 1, opacity: 1, y: -20, ease: "power2.out" });
-    gsap.to(heroDescRef.current, { duration: 1.2, delay: 0.3, opacity: 1, y: -20, ease: "power2.out" });
-    gsap.to(heroBtnRef.current, { duration: 1.4, delay: 0.6, opacity: 1, y: -20, ease: "power2.out" });
+    AOS.init({
+      duration: 1000,
+      once: true,
+      offset: 100
+    });
 
-    const card = heroCardRef.current;
-    const section = card?.parentElement;
-    if (!card || !section) return;
+    const initThreeJS = () => {
+      if (!canvasRef.current) return;
 
-    function handleMouseMove(e) {
-      const rect = section.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const rotateY = ((x - centerX) / centerX) * 12; // max 12deg
-      const rotateX = -((y - centerY) / centerY) * 12;
-      gsap.to(card, { rotateY, rotateX, scale: 1.04, duration: 0.4, ease: "power2.out" });
-    }
-    function handleMouseLeave() {
-      gsap.to(card, { rotateY: 0, rotateX: 0, scale: 1, duration: 0.6, ease: "power2.out" });
-    }
-    section.addEventListener("mousemove", handleMouseMove);
-    section.addEventListener("mouseleave", handleMouseLeave);
-    return () => {
-      section.removeEventListener("mousemove", handleMouseMove);
-      section.removeEventListener("mouseleave", handleMouseLeave);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ 
+        canvas: canvasRef.current, 
+        alpha: true,
+        antialias: true 
+      });
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      // Create particles
+      const particleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+      const particleMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0x6366f1,
+        transparent: true,
+        opacity: 0.6
+      });
+
+      for (let i = 0; i < 50; i++) {
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.set(
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20,
+          (Math.random() - 0.5) * 20
+        );
+        particle.userData.velocity = {
+          x: (Math.random() - 0.5) * 0.02,
+          y: (Math.random() - 0.5) * 0.02,
+          z: (Math.random() - 0.5) * 0.02
+        };
+        scene.add(particle);
+        particlesRef.current.push(particle);
+      }
+
+      // Create floating spheres
+      const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+      const sphereMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xec4899,
+        transparent: true,
+        opacity: 0.3
+      });
+
+      for (let i = 0; i < 5; i++) {
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.set(
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15,
+          (Math.random() - 0.5) * 15
+        );
+        sphere.userData.velocity = {
+          x: (Math.random() - 0.5) * 0.01,
+          y: (Math.random() - 0.5) * 0.01,
+          z: (Math.random() - 0.5) * 0.01
+        };
+        scene.add(sphere);
+        particlesRef.current.push(sphere);
+      }
+
+      camera.position.z = 10;
+
+      const animate = () => {
+        requestAnimationFrame(animate);
+
+        particlesRef.current.forEach(particle => {
+          if (particle.userData.velocity) {
+            particle.position.x += particle.userData.velocity.x;
+            particle.position.y += particle.userData.velocity.y;
+            particle.position.z += particle.userData.velocity.z;
+
+            // Bounce off boundaries
+            if (Math.abs(particle.position.x) > 10) particle.userData.velocity.x *= -1;
+            if (Math.abs(particle.position.y) > 10) particle.userData.velocity.y *= -1;
+            if (Math.abs(particle.position.z) > 10) particle.userData.velocity.z *= -1;
+
+            particle.rotation.x += 0.01;
+            particle.rotation.y += 0.01;
+          }
+        });
+
+        renderer.render(scene, camera);
+      };
+
+      const handleResize = () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      };
+
+      const handleMouseMove = (event) => {
+        const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+        const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        
+        camera.position.x = mouseX * 2;
+        camera.position.y = mouseY * 2;
+        camera.lookAt(0, 0, 0);
+      };
+
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('mousemove', handleMouseMove);
+
+      animate();
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('mousemove', handleMouseMove);
+        renderer.dispose();
+      };
     };
+
+    const cleanup = initThreeJS();
+    return cleanup;
   }, []);
 
-  const scrollToFeatures = () => {
-    const featuresSection = document.getElementById("features");
-    if (featuresSection) {
-      featuresSection.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
   return (
-    <div className="bg-gradient-to-br rounded-2xl from-zinc-50  dark:bg-transparent text-gray-800 font-inter relative w-full">
-      {/* Parallax background */}
-      <div className="parallax-bg pointer-events-none fixed top-0 left-0 w-full md:h-[150vh] -z-10 overflow-hidden">
-        <div className="color-waterfall absolute w-[200%] h-[200%] bg-gradient-to-br from-purple-400 via-blue-400 via-green-400 via-yellow-400 to-red-400 bg-[length:300%_300%] animate-colorFlow filter blur-[80px] opacity-40 rotate-[15deg]"></div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 font-inter overflow-hidden">
+      <style>{`
+        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap");
+        @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+        
+        .font-inter { font-family: 'Inter', sans-serif; }
+        .font-playfair { font-family: 'Playfair Display', serif; }
+        .font-poppins { font-family: 'Poppins', sans-serif; }
+        .font-raleway { font-family: 'Raleway', sans-serif; }
+        .font-montserrat { font-family: 'Montserrat', sans-serif; }
+        .font-roboto { font-family: 'Roboto', sans-serif; }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        
+        @keyframes pulse-glow {
+          0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+          50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
+        }
+        
+        .float-animation {
+          animation: float 6s ease-in-out infinite;
+        }
+        
+        .pulse-glow {
+          animation: pulse-glow 3s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* Three.js Background */}
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{ opacity: 0.3 }}
+      />
 
       {/* Hero Section */}
-      <section className="relative  md:h-[90vh] flex flex-col items-center justify-center text-center md:px-6 overflow-hidden">
-        {/* Decorative gradient blob */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2  h-[32rem] bg-gradient-to-tr from-indigo-300/40 via-purple-200/40 to-pink-200/30 rounded-full blur-3xl -z-10"></div>
-        {/* Glassmorphism Card */}
-        <div
-          ref={heroCardRef}
-          className="relative z-10 w-full max-w-screen px-8 py-14 md:py-20 bg-white/60 dark:bg-sky-300/60 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl ring-1 ring-indigo-100/60 mx-auto flex flex-col items-center will-change-transform transition-transform duration-300"
-        >
-          <span className="uppercase tracking-widest text-xs md:text-sm text-indigo-500 font-semibold mb-4">Auto Color Generator</span>
-          <h1
-            ref={heroTitleRef}
-            id="hero-title"
-            className="text-5xl md:text-7xl font-bold mb-6 opacity-0 font-clash bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent drop-shadow"
-          >
-            Discover Your Perfect Palette
-          </h1>
-          <p
-            ref={heroDescRef}
-            id="hero-desc"
-            className="text-lg md:text-xl text-gray-700 dark:text-gray-500 max-w-2xl mb-8 opacity-0"
-          >
-            Get <span className="font-semibold text-indigo-600">Auto-curated</span> color combinations that elevate your creative work.<br className="hidden md:inline" /> Fast. Intuitive. Stunning.
-          </p>
-          <a
-            ref={heroBtnRef}
-            href="/image-picker"
-            className="group bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-xl transition-opacity opacity-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          >
-            <svg className="w-5 h-5 mr-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-            Try Image Picker
-          </a>
-          <div className="mt-12">
-            <button
-              id="scroll-btn"
-              onClick={scrollToFeatures}
-              className="text-indigo-600 hover:text-indigo-800 text-3xl animate-bounce transition cursor-pointer"
-              aria-label="Scroll to features"
+      <section className="relative z-10 min-h-screen flex items-center justify-center px-4 py-20">
+        <div className="max-w-6xl mx-auto text-center">
+          <div className="mb-8" data-aos="fade-up">
+            <h1 className="text-6xl md:text-8xl font-bold font-playfair mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight leading-tight">
+              ColorSuffel
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-600 font-light max-w-3xl mx-auto leading-relaxed">
+              Professional color tools for designers, developers, and creatives. 
+              Generate gradients, extract colors, and create beautiful palettes with precision.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12" data-aos="fade-up" data-aos-delay="200">
+            <Link
+              to="/gradient"
+              className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
             >
-              ↓
-            </button>
+              Start Creating
+            </Link>
+            <Link
+              to="/image-picker"
+              className="px-8 py-4 bg-white text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl border border-gray-200"
+            >
+              Extract Colors
+            </Link>
+          </div>
+
+          {/* Feature Cards */}
+          <div className="grid md:grid-cols-3 gap-8 mt-16" data-aos="fade-up" data-aos-delay="400">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+              <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Gradient Generator</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Create stunning gradients with our professional tool. Support for multiple color stops, 
+                drag-and-drop reordering, and export in various formats.
+              </p>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+              <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-red-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Color Extraction</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Extract colors from images with precision. Upload any image and get the dominant 
+                colors, perfect for brand analysis and design inspiration.
+              </p>
+            </div>
+
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2">
+              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-teal-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Palette Generator</h3>
+              <p className="text-gray-600 leading-relaxed">
+                Generate harmonious color palettes automatically. Perfect for web design, 
+                branding, and creative projects with professional color theory.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Color Chart Section */}
+      <section className="relative z-10 py-20 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16" data-aos="fade-up">
+            <h2 className="text-4xl md:text-5xl font-bold font-playfair mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+              Interactive Color Chart
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Explore our comprehensive color wheel and discover the perfect colors for your next project. 
+              Click to copy, hover for details, and learn color theory.
+            </p>
+          </div>
+          
+          <div className="relative z-10">
+            <ColorTable />
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 px-6 bg-white font-clash">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
-            <h3 className="text-2xl font-semibold mb-3">🎨 Smart Suggestions</h3>
-            <p className="text-gray-600">
-              Auto-powered palettes tailored to your project theme or keyword.
+      <section className="relative z-10 py-20 px-4 bg-white/50 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16" data-aos="fade-up">
+            <h2 className="text-4xl md:text-5xl font-bold font-playfair mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent">
+              Professional Features
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Built for designers and developers who demand precision and efficiency
             </p>
           </div>
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
-            <h3 className="text-2xl font-semibold mb-3">📦 Export Friendly</h3>
-            <p className="text-gray-600">
-              One-click exports in HEX, RGB, SCSS, and JSON formats for devs and designers.
-            </p>
-          </div>
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
-            <h3 className="text-2xl font-semibold mb-3">🧠 Accessibility First</h3>
-            <p className="text-gray-600">
-              Palettes crafted with accessibility in mind for WCAG compliance.
-            </p>
-          </div>
-          <div className="p-8 bg-zinc-50 rounded-3xl shadow-lg hover:shadow-xl transition-shadow">
-            <h3 className="text-2xl font-semibold mb-3">🖼️ Image Color Picker</h3>
-            <p className="text-gray-600">
-              Upload images and extract beautiful color palettes instantly with our advanced color extraction tool.
-            </p>
-          </div>
-        </div>
-      </section>
 
-      <section>
-        
-      </section>
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div data-aos="fade-right">
+              <h3 className="text-3xl font-bold text-gray-800 mb-6">Advanced Color Tools</h3>
+              <div className="space-y-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-800 mb-2">Eye Dropper Tool</h4>
+                    <p className="text-gray-600">Pick colors from anywhere on your screen with pixel-perfect accuracy</p>
+                  </div>
+                </div>
 
-      {/* Demo Preview Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-white to-slate-100">
-        <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-4xl font-bold mb-8 font-clash">Live Color Preview</h2>
-          <div className="flex flex-wrap justify-center gap-5">
-            {[
-              "#EF4444",
-              "#F59E0B",
-              "#10B981",
-              "#3B82F6",
-              "#8B5CF6"
-            ].map((color) => (
-              <div
-                key={color}
-                className="w-28 h-28 rounded-2xl shadow-lg"
-                style={{ backgroundColor: color }}
-                aria-label={`Color block ${color}`}
-              ></div>
-            ))}
-          </div>
-        </div>
-      </section>
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-800 mb-2">Shade & Tint Generator</h4>
+                    <p className="text-gray-600">Create perfect color variations with professional shade and tint tools</p>
+                  </div>
+                </div>
 
-      {/* Testimonials Section */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-4xl font-bold mb-12 font-clash">Loved by Creators</h2>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="p-8 bg-zinc-50 rounded-2xl shadow-md">
-              <p className="text-gray-600 italic">
-                “ColorSuggest made my portfolio shine. The palettes just work.”
-              </p>
-              <div className="mt-6 font-semibold text-indigo-600">– Durga, Creative Director </div>
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-800 mb-2">Multiple Export Formats</h4>
+                    <p className="text-gray-600">Export in CSS, Tailwind, HEX, RGB, HSL, and more formats</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="p-8 bg-zinc-50 rounded-2xl shadow-md">
-              <p className="text-gray-600 italic">
-                “I use it every week. It's fast, inspiring, and surprisingly accurate.”
-              </p>
-              <div className="mt-6 font-semibold text-indigo-600">- Anibesh,  Photographer</div>
+
+            <div className="relative" data-aos="fade-left">
+              <div className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-3xl p-8 text-white shadow-2xl">
+                <h4 className="text-2xl font-bold mb-4">Perfect for Professionals</h4>
+                <ul className="space-y-3 text-lg">
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Designer-friendly interface
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Developer-ready exports
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    High-precision color picking
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Professional color theory
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Call to Action Section */}
-      <section className="py-20 px-6  bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white text-center">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-4xl font-bold mb-4 font-clash">Ready to Find Your Palette?</h2>
-          <p className="text-lg mb-8">
-            Start exploring beautiful, AI-curated colors for your next project in seconds.
-          </p>
-          <a
-            href="/image-picker"
-            className="inline-block bg-white text-indigo-700 font-semibold px-6 py-3 rounded-full shadow-md hover:bg-gray-100 transition"
-          >
-            Try Image Picker
-          </a>
+      {/* CTA Section */}
+      <section className="relative z-10 py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-12 text-white shadow-2xl" data-aos="fade-up">
+            <h2 className="text-4xl md:text-5xl font-bold font-playfair mb-6">
+              Ready to Create?
+            </h2>
+            <p className="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
+              Start building beautiful color schemes and gradients for your next project. 
+              Professional tools for professional results.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                to="/gradientgen"
+                className="px-8 py-4 bg-white text-indigo-600 font-semibold rounded-xl hover:bg-gray-50 transform hover:scale-105 transition-all duration-300 shadow-lg"
+              >
+                Create Gradient
+              </Link>
+              <Link
+                to="/imagecolorpicker"
+                className="px-8 py-4 bg-transparent border-2 border-white text-white font-semibold rounded-xl hover:bg-white hover:text-indigo-600 transform hover:scale-105 transition-all duration-300"
+              >
+                Extract Colors
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
-
-
-
-      {/* Custom styles for fonts and animations */}
-      <style jsx global>{`
-        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap");
-        @import url("https://api.fontshare.com/v2/css?f[]=clash-display@700&display=swap");
-
-        .font-inter {
-          font-family: "Inter", sans-serif;
-        }
-
-        .font-clash {
-          font-family: "Clash Display", sans-serif;
-        }
-
-        @keyframes colorFlow {
-          0% {
-            background-position: 0% 0%;
-          }
-          50% {
-            background-position: 100% 100%;
-          }
-          100% {
-            background-position: 0% 0%;
-          }
-        }
-
-        .animate-colorFlow {
-          animation: colorFlow 15s linear infinite;
-        }
-
-        .parallax-bg {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 150vh;
-          z-index: -10;
-          overflow: hidden;
-          pointer-events: none;
-        }
-
-        .color-waterfall {
-          position: absolute;
-          width: 200%;
-          height: 200%;
-          background: linear-gradient(
-            135deg,
-            #c084fc,
-            #60a5fa,
-            #34d399,
-            #facc15,
-            #f87171
-          );
-          background-size: 300% 300%;
-          filter: blur(80px);
-          opacity: 0.4;
-          transform: rotate(15deg);
-        }
-      `}</style>
     </div>
   );
 };

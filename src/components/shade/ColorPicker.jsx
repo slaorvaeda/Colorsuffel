@@ -82,9 +82,9 @@ function ColorPicker({ onColorSelect }) {
       h /= 6;
     }
     return {
-      h: Math.round(h * 360),
-      s: Math.round(s * 100),
-      l: Math.round(l * 100)
+      h: parseFloat((h * 360).toFixed(3)),
+      s: parseFloat((s * 100).toFixed(3)),
+      l: parseFloat((l * 100).toFixed(3))
     };
   };
 
@@ -107,57 +107,9 @@ function ColorPicker({ onColorSelect }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-4 sm:py-6 lg:py-8 px-2 sm:px-4">
+    <div className="dark:from-gray-900 dark:to-gray-800 py-4 sm:py-6 lg:py-8 px-2 sm:px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header Section */}
-        <div className="text-center mb-8 sm:mb-10 lg:mb-12" data-aos="fade-down">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
-            Color Shades & Tints Generator
-          </h1>
-          <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
-            Create professional color palettes with precise shades and tints. Perfect for design systems and brand guidelines.
-          </p>
-        </div>
-
-        {/* Info Box */}
-        {showInfo && (
-          <div className="max-w-4xl mx-auto mb-6 sm:mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6" data-aos="fade-up">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex-shrink-0">
-                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-base sm:text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                  How to use this tool
-                </h3>
-                <p className="text-sm sm:text-base text-blue-800 dark:text-blue-200 mb-3">
-                  Select your base color using the color picker below. The tool will automatically generate a complete palette of shades (darker variations) and tints (lighter variations) that you can use in your designs.
-                </p>
-                <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-blue-700 dark:text-blue-300">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <span>Shades: Darker variations</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-pink-300 rounded-full"></div>
-                    <span>Tints: Lighter variations</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                className="flex-shrink-0 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200 transition-colors"
-                onClick={() => setShowInfo(false)}
-                aria-label="Close info box"
-              >
-                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
+      
 
         {/* Color Picker Section */}
         <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8" data-aos="zoom-in">

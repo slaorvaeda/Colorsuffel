@@ -1,10 +1,24 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { FaChevronDown } from 'react-icons/fa'
 
 function Navmenu({isOpen}) {
   const location = useLocation();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isDropdownOpen && !event.target.closest('.dropdown-container')) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDropdownOpen]);
   return (
-    <div className={`items-center justify-between ${isOpen ? 'block' : 'hidden'} w-full md:flex md:w-auto md:order-1`} id="navbar-sticky">
+       <div className={`items-center justify-between ${isOpen ? 'block' : 'hidden'} w-full md:flex md:w-auto md:order-1`} id="navbar-sticky">
       {/* Mobile Menu Overlay */}
       <div className={`fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden ${isOpen ? 'block' : 'hidden'}`}></div>
       
@@ -73,8 +87,8 @@ function Navmenu({isOpen}) {
                 </svg>
                 Gradient
               </Link>
-            </li>
-            <li>
+              </li>
+              <li>
               <Link 
                 to="/pallet" 
                 className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
@@ -89,8 +103,8 @@ function Navmenu({isOpen}) {
                 </svg>
                 Pallet
               </Link>
-            </li>
-            <li>
+              </li>
+              <li>
               <Link 
                 to="/image-picker" 
                 className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
@@ -105,8 +119,8 @@ function Navmenu({isOpen}) {
                 </svg>
                 Image Picker
               </Link>
-            </li>
-            <li>
+              </li>
+              <li>
               <Link 
                 to="/color-names" 
                 className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
@@ -121,7 +135,40 @@ function Navmenu({isOpen}) {
                 </svg>
                 Color Names
               </Link>
-            </li>
+              </li>
+              <li>
+              <Link 
+                to="/demo-website" 
+                className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
+                  location.pathname === '/demo-website' 
+                    ? 'bg-blue-600 text-white shadow-lg' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => window.dispatchEvent(new CustomEvent('toggleMenu'))}
+              >
+                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Demo Website
+              </Link>
+              </li>
+              <li>
+              <Link 
+                to="/contrast-checker" 
+                className={`flex items-center px-4 py-3 rounded-lg transition-all duration-200 ${
+                  location.pathname === '/contrast-checker' 
+                    ? 'bg-blue-600 text-white shadow-lg' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+                onClick={() => window.dispatchEvent(new CustomEvent('toggleMenu'))}
+              >
+                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Contrast Checker
+              </Link>
+              </li>
           </ul>
         </nav>
       </div>
@@ -218,8 +265,61 @@ function Navmenu({isOpen}) {
             )}
           </Link>
         </li>
+        
+        {/* Dropdown Menu */}
+        <li className="relative dropdown-container">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
+              (location.pathname === '/demo-website' || location.pathname === '/contrast-checker')
+                ? 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20' 
+                : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-300 dark:hover:text-blue-400 dark:hover:bg-blue-900/20'
+            }`}
+          >
+            Tools
+            <FaChevronDown className={`text-sm transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 min-w-48">
+              <Link
+                to="/demo-website"
+                className={`block px-4 py-3 text-sm transition-colors duration-200 ${
+                  location.pathname === '/demo-website'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+                onClick={() => setIsDropdownOpen(false)}
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Demo Website
+                </div>
+              </Link>
+              <Link
+                to="/contrast-checker"
+                className={`block px-4 py-3 text-sm transition-colors duration-200 ${
+                  location.pathname === '/contrast-checker'
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+                onClick={() => setIsDropdownOpen(false)}
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Contrast Checker
+                </div>
+              </Link>
+            </div>
+          )}
+        </li>
       </ul>
-    </div>
+          </div>
   )
 }
 

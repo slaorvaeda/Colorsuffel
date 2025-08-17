@@ -1,0 +1,138 @@
+{
+  "palettes": [
+    {
+      "id": "ocean-breeze",
+      "name": "Ocean Breeze",
+      "category": "Professional",
+      "description": "Calm and professional - perfect for corporate websites",
+      "colors": ["#1e3a8a", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"],
+      "ideology": "This palette uses cool blues to create a sense of trust, professionalism, and calmness. Ideal for financial, medical, or corporate websites.",
+      "bestFor": ["Corporate websites", "Financial services", "Healthcare", "Technology", "Consulting"],
+      "mood": "Professional, Trustworthy, Calm"
+    },
+    {
+      "id": "sunset-warmth",
+      "name": "Sunset Warmth",
+      "category": "Creative",
+      "description": "Energetic and creative - great for portfolios and creative agencies",
+      "colors": ["#dc2626", "#ea580c", "#f59e0b", "#fbbf24", "#fef3c7"],
+      "ideology": "Warm oranges and reds evoke energy, creativity, and enthusiasm. Perfect for creative portfolios, restaurants, or entertainment websites.",
+      "bestFor": ["Creative portfolios", "Restaurants", "Entertainment", "Art galleries", "Event planning"],
+      "mood": "Energetic, Creative, Enthusiastic"
+    },
+    {
+      "id": "forest-harmony",
+      "name": "Forest Harmony",
+      "category": "Nature",
+      "description": "Natural and organic - ideal for eco-friendly and wellness brands",
+      "colors": ["#166534", "#16a34a", "#22c55e", "#4ade80", "#bbf7d0"],
+      "ideology": "Green tones represent growth, nature, and harmony. Excellent for environmental, wellness, or organic product websites.",
+      "bestFor": ["Eco-friendly brands", "Wellness", "Organic products", "Gardening", "Sustainability"],
+      "mood": "Natural, Organic, Harmonious"
+    },
+    {
+      "id": "royal-purple",
+      "name": "Royal Purple",
+      "category": "Luxury",
+      "description": "Luxury and sophistication - perfect for premium brands",
+      "colors": ["#581c87", "#7c3aed", "#a855f7", "#c084fc", "#e9d5ff"],
+      "ideology": "Purple conveys luxury, creativity, and sophistication. Ideal for premium brands, beauty products, or artistic websites.",
+      "bestFor": ["Premium brands", "Beauty products", "Artistic websites", "Luxury services", "Fashion"],
+      "mood": "Luxurious, Sophisticated, Creative"
+    },
+    {
+      "id": "minimal-gray",
+      "name": "Minimal Gray",
+      "category": "Minimalist",
+      "description": "Clean and modern - excellent for tech and minimalist designs",
+      "colors": ["#1f2937", "#374151", "#6b7280", "#9ca3af", "#f3f4f6"],
+      "ideology": "Neutral grays create a clean, professional, and timeless look. Perfect for tech companies, SaaS products, or minimalist designs.",
+      "bestFor": ["Tech companies", "SaaS products", "Minimalist designs", "Professional services", "Modern brands"],
+      "mood": "Clean, Professional, Timeless"
+    },
+    {
+      "id": "coral-reef",
+      "name": "Coral Reef",
+      "category": "Vibrant",
+      "description": "Vibrant and tropical - perfect for travel and lifestyle brands",
+      "colors": ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"],
+      "ideology": "Coral and orange tones create a vibrant, tropical feel. Great for travel, lifestyle, and energetic brands.",
+      "bestFor": ["Travel websites", "Lifestyle brands", "Fitness", "Adventure", "Summer products"],
+      "mood": "Vibrant, Tropical, Energetic"
+    },
+    {
+      "id": "midnight-blue",
+      "name": "Midnight Blue",
+      "category": "Dark",
+      "description": "Deep and mysterious - ideal for nightlife and entertainment",
+      "colors": ["#0f172a", "#1e293b", "#334155", "#475569", "#64748b"],
+      "ideology": "Dark blues create a sophisticated, mysterious atmosphere. Perfect for nightlife, entertainment, or premium services.",
+      "bestFor": ["Nightlife", "Entertainment", "Premium services", "Gaming", "Luxury brands"],
+      "mood": "Mysterious, Sophisticated, Premium"
+    },
+    {
+      "id": "spring-bloom",
+      "name": "Spring Bloom",
+      "category": "Pastel",
+      "description": "Soft and gentle - great for feminine and wellness brands",
+      "colors": ["#ec4899", "#f472b6", "#f9a8d4", "#fce7f3", "#fdf2f8"],
+      "ideology": "Soft pinks and pastels create a gentle, nurturing atmosphere. Ideal for feminine brands, wellness, or baby products.",
+      "bestFor": ["Feminine brands", "Wellness", "Baby products", "Beauty", "Romantic themes"],
+      "mood": "Gentle, Nurturing, Feminine"
+    },
+    {
+      "id": "desert-sunset",
+      "name": "Desert Sunset",
+      "category": "Warm",
+      "description": "Warm and earthy - perfect for rustic and artisanal brands",
+      "colors": ["#92400e", "#b45309", "#d97706", "#f59e0b", "#fef3c7"],
+      "ideology": "Warm earth tones create a rustic, artisanal feel. Great for handmade products, cafes, or organic brands.",
+      "bestFor": ["Handmade products", "Cafes", "Organic brands", "Artisanal", "Rustic themes"],
+      "mood": "Warm, Rustic, Artisanal"
+    },
+    {
+      "id": "ocean-depths",
+      "name": "Ocean Depths",
+      "category": "Deep",
+      "description": "Deep and calming - ideal for meditation and wellness",
+      "colors": ["#0c4a6e", "#075985", "#0369a1", "#0284c7", "#e0f2fe"],
+      "ideology": "Deep blue tones create a calming, meditative atmosphere. Perfect for wellness, meditation, or spa services.",
+      "bestFor": ["Wellness", "Meditation", "Spa services", "Healthcare", "Calming products"],
+      "mood": "Calming, Meditative, Deep"
+    },
+    {
+      "id": "autumn-leaves",
+      "name": "Autumn Leaves",
+      "category": "Seasonal",
+      "description": "Rich and seasonal - great for fall and harvest themes",
+      "colors": ["#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#fed7aa"],
+      "ideology": "Rich autumn colors create a warm, seasonal atmosphere. Perfect for harvest themes, seasonal products, or cozy brands.",
+      "bestFor": ["Seasonal products", "Harvest themes", "Cozy brands", "Autumn collections", "Warm products"],
+      "mood": "Warm, Seasonal, Cozy"
+    },
+    {
+      "id": "neon-dreams",
+      "name": "Neon Dreams",
+      "category": "Modern",
+      "description": "Bold and futuristic - perfect for modern tech and gaming",
+      "colors": ["#7c3aed", "#8b5cf6", "#a855f7", "#c084fc", "#f3e8ff"],
+      "ideology": "Bold neon colors create a futuristic, modern atmosphere. Ideal for tech, gaming, or cutting-edge brands.",
+      "bestFor": ["Tech companies", "Gaming", "Modern brands", "Futuristic themes", "Innovation"],
+      "mood": "Bold, Futuristic, Modern"
+    }
+  ],
+  "categories": [
+    "Professional",
+    "Creative", 
+    "Nature",
+    "Luxury",
+    "Minimalist",
+    "Vibrant",
+    "Dark",
+    "Pastel",
+    "Warm",
+    "Deep",
+    "Seasonal",
+    "Modern"
+  ]
+} 

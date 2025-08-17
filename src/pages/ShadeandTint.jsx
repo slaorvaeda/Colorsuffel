@@ -25,7 +25,27 @@ function ShadeandTint() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen dark:from-gray-900 dark:to-gray-800">
+            {/* Custom styles for fonts */}
+            <style>
+                {`
+                    @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800;900&display=swap");
+                    .font-raleway {
+                        font-family: 'Raleway', sans-serif;
+                    }
+                `}
+            </style>
+            
+            {/* Header */}
+            <div className="text-center mb-8 pt-8">
+                <h1 className="text-5xl md:text-6xl font-bold mb-6 font-raleway bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                    Shade & Tint Generator
+                </h1>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Generate beautiful shades and tints from any color. Perfect for creating harmonious color palettes.
+                </p>
+            </div>
+            
             <ColorPicker onColorSelect={handleColorSelect} />
             <ColorPalette color={selectedColor} onLike={handleLike} />
             
