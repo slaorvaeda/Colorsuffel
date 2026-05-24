@@ -1,10 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
+// @ts-nocheck — refs and window.EyeDropper; plain JSX page.
+import { useState, useRef, useEffect, useCallback } from 'react';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import CardListSlider from '../components/CardListSlider';
-import { FaEyeDropper, FaCopy, FaCheck, FaHeart, FaRegHeart, FaDownload, FaCamera, FaDesktop, FaArrowRight } from 'react-icons/fa';
+import { FaEyeDropper, FaCopy, FaCheck, FaHeart, FaRegHeart, FaDownload } from 'react-icons/fa';
+import { HiArrowTopRightOnSquare, HiPhoto, HiArrowPath, HiTrash } from 'react-icons/hi2';
 import tinycolor from 'tinycolor2';
 import { Link } from 'react-router-dom';
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+function newColorId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** tinycolor `toHsl()` uses s,l in 0–1; our canvas path uses 0–100. Normalize for display. */
+function normalizeHslForDisplay(hsl) {
+  if (!hsl || typeof hsl !== 'object') return { h: 0, s: 0, l: 0 };
+  let h = Number(hsl.h) || 0;
+  let s = Number(hsl.s) || 0;
+  let l = Number(hsl.l) || 0;
+  if (s > 0 && s <= 1) s *= 100;
+  if (l > 0 && l <= 1) l *= 100;
+  return {
+    h: Math.round(h * 10) / 10,
+    s: Math.round(s * 10) / 10,
+    l: Math.round(l * 10) / 10,
+  };
+}
 
 function ImageColorPicker() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -13,40 +36,180 @@ function ImageColorPicker() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedColor, setCopiedColor] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'list'
+  const [viewMode, setViewMode] = useState('cards');
   const [isSupported, setIsSupported] = useState(true);
   const [isPicking, setIsPicking] = useState(false);
   const [favorites, setFavorites] = useState([]);
-  const [showColorInfo, setShowColorInfo] = useState(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    AOS.init({ duration: 700, once: true });
-    
-    // Check if EyeDropper API is supported
-    if (!window.EyeDropper) {
-      setIsSupported(false);
-    }
-    
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem('image-picker-favorites');
-    if (savedFavorites) {
-      setFavorites(JSON.parse(savedFavorites));
+    AOS.init({ duration: 600, once: true });
+    if (!window.EyeDropper) setIsSupported(false);
+    try {
+      const raw = localStorage.getItem('image-picker-favorites');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setFavorites(parsed);
+      }
+    } catch {
+      /* ignore corrupt storage */
     }
   }, []);
 
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImageUrl(e.target.result);
-        setSelectedImage(file);
-        extractColorsFromImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
+  const rgbToHex = (r, g, b) =>
+    `#${[r, g, b]
+      .map((x) => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? `0${hex}` : hex;
+      })
+      .join('')}`;
+
+  const rgbToHsl = (r, g, b) => {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        default:
+          h = (r - g) / d + 4;
+      }
+      h /= 6;
     }
+    return {
+      h: Math.round(h * 3600) / 10,
+      s: Math.round(s * 1000) / 10,
+      l: Math.round(l * 1000) / 10,
+    };
+  };
+
+  const getColorName = (hex) => {
+    const tc = tinycolor(hex);
+    const hsl = tc.toHsl();
+    if (hsl.s < 0.1) {
+      if (hsl.l > 0.8) return 'White';
+      if (hsl.l < 0.2) return 'Black';
+      return 'Gray';
+    }
+    const hue = hsl.h;
+    if (hue < 15 || hue > 345) return 'Red';
+    if (hue < 45) return 'Orange';
+    if (hue < 75) return 'Yellow';
+    if (hue < 165) return 'Green';
+    if (hue < 195) return 'Cyan';
+    if (hue < 255) return 'Blue';
+    if (hue < 285) return 'Purple';
+    if (hue < 315) return 'Magenta';
+    return 'Pink';
+  };
+
+  const extractColorsFromImage = useCallback((imageSrc) => {
+    setIsLoading(true);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        setIsLoading(false);
+        return;
+      }
+      const ctx = canvas.getContext('2d');
+      const maxSize = 800;
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        const ratio = Math.min(maxSize / width, maxSize / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      const colors = new Map();
+      const step = 4;
+      for (let i = 0; i < data.length; i += step * 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+        if (a < 100) continue;
+        const roundedR = Math.round(r / 20) * 20;
+        const roundedG = Math.round(g / 20) * 20;
+        const roundedB = Math.round(b / 20) * 20;
+        const finalR = Math.max(0, Math.min(255, roundedR));
+        const finalG = Math.max(0, Math.min(255, roundedG));
+        const finalB = Math.max(0, Math.min(255, roundedB));
+        const colorKey = `${finalR},${finalG},${finalB}`;
+        colors.set(colorKey, (colors.get(colorKey) ?? 0) + 1);
+      }
+      const colorArray = Array.from(colors.entries())
+        .map(([key, count]) => {
+          const [r, g, b] = key.split(',').map(Number);
+          const hex = rgbToHex(r, g, b);
+          return {
+            hex,
+            rgb: { r, g, b },
+            hsl: rgbToHsl(r, g, b),
+            count,
+            source: 'image',
+            name: getColorName(hex),
+            id: newColorId(),
+          };
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12);
+
+      if (colorArray.length === 0) {
+        setExtractedColors([
+          { hex: '#FF6B6B', rgb: { r: 255, g: 107, b: 107 }, hsl: { h: 0, s: 100, l: 71 }, count: 1, id: newColorId(), source: 'image' },
+          { hex: '#4ECDC4', rgb: { r: 78, g: 205, b: 196 }, hsl: { h: 175, s: 53, l: 55 }, count: 1, id: newColorId(), source: 'image' },
+          { hex: '#45B7D1', rgb: { r: 69, g: 183, b: 209 }, hsl: { h: 194, s: 55, l: 55 }, count: 1, id: newColorId(), source: 'image' },
+        ]);
+      } else {
+        setExtractedColors(colorArray);
+      }
+      setIsLoading(false);
+    };
+    img.onerror = () => {
+      setIsLoading(false);
+    };
+    img.src = imageSrc;
+  }, []);
+
+  const readFileAsImage = (file) => {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > MAX_FILE_BYTES) {
+      window.alert(`Please use an image under ${MAX_FILE_BYTES / (1024 * 1024)}MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result;
+      if (typeof result !== 'string') return;
+      setImageUrl(result);
+      setSelectedImage(file);
+      extractColorsFromImage(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (file) readFileAsImage(file);
   };
 
   const handleDragOver = (e) => {
@@ -62,158 +225,8 @@ function ImageColorPicker() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragActive(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImageUrl(e.target.result);
-        setSelectedImage(file);
-        extractColorsFromImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const extractColorsFromImage = (imageSrc) => {
-    setIsLoading(true);
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      
-      // Set canvas size to image size (limit max size for performance)
-      const maxSize = 800;
-      let { width, height } = img;
-      
-      if (width > maxSize || height > maxSize) {
-        const ratio = Math.min(maxSize / width, maxSize / height);
-        width = Math.floor(width * ratio);
-        height = Math.floor(height * ratio);
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      // Draw image on canvas
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // Get image data
-      const imageData = ctx.getImageData(0, 0, width, height);
-      const data = imageData.data;
-      
-      // Extract colors (sample every 4th pixel for better coverage)
-      const colors = new Map();
-      const step = 4; // Sample every 4th pixel
-      
-      for (let i = 0; i < data.length; i += step * 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-        
-        // Skip transparent or very transparent pixels
-        if (a < 100) continue;
-        
-        // Round colors to reduce similar colors (use smaller buckets)
-        const roundedR = Math.round(r / 20) * 20;
-        const roundedG = Math.round(g / 20) * 20;
-        const roundedB = Math.round(b / 20) * 20;
-        
-        // Ensure values are within valid range
-        const finalR = Math.max(0, Math.min(255, roundedR));
-        const finalG = Math.max(0, Math.min(255, roundedG));
-        const finalB = Math.max(0, Math.min(255, roundedB));
-        
-        const colorKey = `${finalR},${finalG},${finalB}`;
-        
-        if (colors.has(colorKey)) {
-          colors.set(colorKey, colors.get(colorKey) + 1);
-        } else {
-          colors.set(colorKey, 1);
-        }
-      }
-      
-      // Convert to array and sort by frequency
-      const colorArray = Array.from(colors.entries())
-        .map(([key, count]) => {
-          const [r, g, b] = key.split(',').map(Number);
-          return {
-            hex: rgbToHex(r, g, b),
-            rgb: { r, g, b },
-            hsl: rgbToHsl(r, g, b),
-            count,
-            source: 'image',
-            name: getColorName(rgbToHex(r, g, b)),
-            timestamp: new Date().toISOString(),
-            id: Date.now() + Math.random()
-          };
-        })
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 12); // Get top 12 colors
-      
-      // If no colors were extracted, add some fallback colors
-      if (colorArray.length === 0) {
-        const fallbackColors = [
-          { hex: '#FF6B6B', rgb: { r: 255, g: 107, b: 107 }, hsl: { h: 0, s: 100, l: 71 }, count: 1 },
-          { hex: '#4ECDC4', rgb: { r: 78, g: 205, b: 196 }, hsl: { h: 175, s: 53, l: 55 }, count: 1 },
-          { hex: '#45B7D1', rgb: { r: 69, g: 183, b: 209 }, hsl: { h: 194, s: 55, l: 55 }, count: 1 },
-          { hex: '#96CEB4', rgb: { r: 150, g: 206, b: 180 }, hsl: { h: 150, s: 39, l: 70 }, count: 1 },
-          { hex: '#FFEAA7', rgb: { r: 255, g: 234, b: 167 }, hsl: { h: 48, s: 100, l: 83 }, count: 1 },
-          { hex: '#DDA0DD', rgb: { r: 221, g: 160, b: 221 }, hsl: { h: 300, s: 47, l: 75 }, count: 1 }
-        ];
-        setExtractedColors(fallbackColors);
-      } else {
-        setExtractedColors(colorArray);
-      }
-      setIsLoading(false);
-    };
-    
-    img.onerror = () => {
-      console.error('Failed to load image');
-      setIsLoading(false);
-    };
-    
-    img.src = imageSrc;
-  };
-
-  const rgbToHex = (r, g, b) => {
-    const hex = '#' + [r, g, b].map(x => {
-      const hex = x.toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-    return hex;
-  };
-
-  const rgbToHsl = (r, g, b) => {
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h, s, l = (max + min) / 2;
-    
-    if (max === min) {
-      h = s = 0;
-    } else {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-        default: h = 0;
-      }
-      h /= 6;
-    }
-    
-    return {
-      h: parseFloat((h * 360).toFixed(3)),
-      s: parseFloat((s * 100).toFixed(3)),
-      l: parseFloat((l * 100).toFixed(3))
-    };
+    const file = e.dataTransfer.files?.[0];
+    if (file) readFileAsImage(file);
   };
 
   const copyToClipboard = async (text, colorType) => {
@@ -227,81 +240,60 @@ function ImageColorPicker() {
   };
 
   const triggerFileInput = () => {
-    fileInputRef.current.click();
+    fileInputRef.current?.click();
   };
 
-  // Eye Dropper functionality
   const startColorPicking = async () => {
     if (!window.EyeDropper) {
-      alert('EyeDropper API is not supported in your browser. Try Chrome, Edge, or Firefox.');
+      window.alert('EyeDropper API is not supported in your browser. Try Chrome, Edge, or Firefox.');
       return;
     }
-
     try {
       setIsPicking(true);
       const eyeDropper = new window.EyeDropper();
       const result = await eyeDropper.open();
-      
       const color = result.sRGBHex;
+      const tc = tinycolor(color);
+      const rawHsl = tc.toHsl();
+      const hsl = normalizeHslForDisplay(rawHsl);
+      const rgbObj = tc.toRgb();
       const colorInfo = {
         hex: color,
-        rgb: tinycolor(color).toRgb(),
-        hsl: tinycolor(color).toHsl(),
+        rgb: { r: rgbObj.r, g: rgbObj.g, b: rgbObj.b },
+        hsl,
         name: getColorName(color),
-        timestamp: new Date().toISOString(),
-        id: Date.now(),
-        source: 'eyedropper'
+        id: newColorId(),
+        source: 'eyedropper',
       };
-      
-      // Add to extracted colors
-      setExtractedColors(prev => [colorInfo, ...prev.slice(0, 19)]);
-      setShowColorInfo(colorInfo);
-      
-      // Auto-copy to clipboard
-      await copyToClipboard(color, 'auto');
-      
+      setExtractedColors((prev) => {
+        const next = [colorInfo, ...prev.filter((c) => c.hex.toLowerCase() !== color.toLowerCase())];
+        return next.slice(0, 24);
+      });
+      await copyToClipboard(color, 'eyedropper-auto');
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('Error picking color:', error);
-        alert('Failed to pick color. Please try again.');
+        window.alert('Could not read that color. Try again.');
       }
     } finally {
       setIsPicking(false);
     }
   };
 
-  const getColorName = (hex) => {
-    const color = tinycolor(hex);
-    const hsl = color.toHsl();
-    
-    if (hsl.s < 0.1) {
-      if (hsl.l > 0.8) return 'White';
-      if (hsl.l < 0.2) return 'Black';
-      return 'Gray';
-    }
-    
-    if (hsl.h < 15 || hsl.h > 345) return 'Red';
-    if (hsl.h < 45) return 'Orange';
-    if (hsl.h < 75) return 'Yellow';
-    if (hsl.h < 165) return 'Green';
-    if (hsl.h < 195) return 'Cyan';
-    if (hsl.h < 255) return 'Blue';
-    if (hsl.h < 285) return 'Purple';
-    if (hsl.h < 315) return 'Magenta';
-    return 'Pink';
-  };
-
   const toggleFavorite = (color) => {
-    const newFavorites = favorites.find(f => f.hex === color.hex)
-      ? favorites.filter(f => f.hex !== color.hex)
+    const newFavorites = favorites.find((f) => f.hex === color.hex)
+      ? favorites.filter((f) => f.hex !== color.hex)
       : [...favorites, color];
-    
     setFavorites(newFavorites);
-    localStorage.setItem('image-picker-favorites', JSON.stringify(newFavorites));
+    try {
+      localStorage.setItem('image-picker-favorites', JSON.stringify(newFavorites));
+    } catch {
+      /* quota / private mode */
+    }
   };
 
   const downloadPalette = () => {
-    const colors = extractedColors.map(c => c.hex).join('\n');
+    const colors = extractedColors.map((c) => c.hex).join('\n');
     const blob = new Blob([colors], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -315,16 +307,21 @@ function ImageColorPicker() {
     setExtractedColors([]);
     setImageUrl('');
     setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Test function to create a simple colored image for debugging
+  const removeImageOnly = () => {
+    setImageUrl('');
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setExtractedColors((prev) => prev.filter((c) => c.source !== 'image'));
+  };
+
   const createTestImage = () => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
     canvas.height = 200;
     const ctx = canvas.getContext('2d');
-    
-    // Create a simple gradient
     const gradient = ctx.createLinearGradient(0, 0, 200, 200);
     gradient.addColorStop(0, '#FF6B6B');
     gradient.addColorStop(0.2, '#4ECDC4');
@@ -332,485 +329,363 @@ function ImageColorPicker() {
     gradient.addColorStop(0.6, '#96CEB4');
     gradient.addColorStop(0.8, '#FFEAA7');
     gradient.addColorStop(1, '#DDA0DD');
-    
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 200, 200);
-    
     const testImageUrl = canvas.toDataURL();
     setImageUrl(testImageUrl);
+    setSelectedImage(null);
     extractColorsFromImage(testImageUrl);
   };
 
+  const hasImage = Boolean(imageUrl);
+  const hasPalette = extractedColors.length > 0;
+
   return (
-    <div className="min-h-screen py-4 sm:py-6 md:py-8 px-4 font-poppins">
-      {/* Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+    <div className="font-body min-h-[70vh] px-4 py-8 text-zinc-900 sm:py-10 md:px-6 dark:text-zinc-100">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -right-32 -top-32 h-72 w-72 rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/20 blur-3xl dark:from-cyan-500/15 dark:to-fuchsia-600/10" />
+        <div className="absolute -bottom-32 -left-32 h-72 w-72 rounded-full bg-gradient-to-tr from-violet-400/20 to-pink-400/15 blur-3xl dark:from-violet-600/10 dark:to-pink-500/10" />
       </div>
 
-      <div className="max-w-7xl mx-auto relative z-10">
-        {/* Header */}
-        <div className="text-center mb-8 sm:mb-12" data-aos="fade-down">
-         
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 font-raleway bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight px-4">
-            Image & Screen Color Picker
-          </h1>
-          <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto font-inter leading-relaxed px-4">
-            Extract colors from images or pick colors directly from your screen. Create beautiful palettes with our advanced color tools.
-          </p>
-        </div>
-
-        {/* Floating Eye Dropper Button */}
-        <div className="absolute top-6 right-6 z-50" data-aos="fade-left">
+      <div className="relative z-10 mx-auto max-w-6xl">
+        <header className="mb-8 flex flex-col gap-4 sm:mb-10 md:flex-row md:items-end md:justify-between" data-aos="fade-down">
+          <div className="max-w-2xl">
+            <p className="font-code text-[11px] font-medium uppercase tracking-[0.28em] text-sky-600 dark:text-cyan-300/90">
+              Tools
+            </p>
+            <h1 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
+              Image color picker
+            </h1>
+            <p className="font-body mt-3 text-sm leading-relaxed text-zinc-600 sm:text-base dark:text-zinc-400">
+              Upload a reference, get dominant swatches, then copy hex or add picks from your screen.
+            </p>
+          </div>
           <Link
             to="/eye-dropper"
-            className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-110 shadow-xl hover:shadow-2xl flex items-center justify-center group"
-            title="Eye Dropper Tool"
+            className="font-ui inline-flex shrink-0 items-center gap-2 self-start rounded-2xl border border-zinc-200/90 bg-white/80 px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur transition hover:border-violet-300 hover:text-violet-800 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:border-cyan-400/40 dark:hover:text-cyan-100"
           >
-            <FaEyeDropper className="text-xl sm:text-2xl" />
-            
-            {/* Tooltip */}
-            <div className="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-black/80 text-white text-sm px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
-              Eye Dropper Tool
-              <div className="absolute left-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-l-4 border-l-black/80 border-t-4 border-t-transparent border-b-4 border-b-transparent"></div>
-            </div>
+            <FaEyeDropper className="text-violet-600 dark:text-cyan-300" aria-hidden />
+            Full-screen eyedropper
+            <HiArrowTopRightOnSquare className="h-4 w-4 opacity-70" aria-hidden />
           </Link>
-        </div>
+        </header>
 
-        {/* Upload Section */}
-        <div className="mb-12" data-aos="fade-up">
-          {/* Action Buttons */}
-          <div className="text-center mb-6 space-y-4 px-4">
-            <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+
+        {/* Toolbar */}
+        <div
+          className="mb-6 flex flex-wrap items-center justify-center gap-2 sm:justify-start sm:gap-3"
+          data-aos="fade-up"
+        >
+          <button
+            type="button"
+            onClick={createTestImage}
+            className="font-ui rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
+          >
+            Try sample image
+          </button>
+          {isSupported && (
+            <button
+              type="button"
+              onClick={startColorPicking}
+              disabled={isPicking}
+              className={`font-ui inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-md transition ${
+                isPicking
+                  ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500'
+                  : 'bg-gradient-to-r from-sky-500 to-violet-600 text-white hover:brightness-110'
+              }`}
+            >
+              <FaEyeDropper aria-hidden />
+              {isPicking ? 'Picking…' : 'Pick from screen'}
+            </button>
+          )}
+          {hasPalette && (
+            <>
               <button
-                onClick={createTestImage}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold flex items-center gap-2 text-sm sm:text-base"
+                type="button"
+                onClick={downloadPalette}
+                className="font-ui inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/90 px-4 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-100 dark:hover:bg-zinc-800/80"
               >
-                🎨 Try Sample Image
+                <FaDownload aria-hidden />
+                Download .txt
               </button>
-              
-              {isSupported && (
-                <button
-                  onClick={startColorPicking}
-                  disabled={isPicking}
-                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2 text-sm sm:text-base ${
-                    isPicking
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700'
-                  }`}
-                >
-                  <FaEyeDropper className="text-lg" />
-                  {isPicking ? 'Picking Color...' : 'Pick from Screen'}
-                </button>
-              )}
-              
-              {extractedColors.length > 0 && (
-                <>
-                  <button
-                    onClick={downloadPalette}
-                    className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-blue-600 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold flex items-center gap-2 text-sm sm:text-base"
-                  >
-                    <FaDownload />
-                    Download Palette
-                  </button>
-                  
-                  <button
-                    onClick={clearAllColors}
-                    className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold flex items-center gap-2 text-sm sm:text-base"
-                  >
-                    Clear All
-                  </button>
-                </>
-              )}
-            </div>
-            
-            {!isSupported && (
-              <p className="text-sm text-gray-500">
-                Screen color picking is not supported in your browser. Try Chrome, Edge, or Firefox.
-              </p>
-            )}
-          </div>
-          
+              <button
+                type="button"
+                onClick={clearAllColors}
+                className="font-ui rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70"
+              >
+                Clear all
+              </button>
+            </>
+          )}
+        </div>
+        {!isSupported && (
+          <p className="mb-6 text-center text-sm text-zinc-500 sm:text-left dark:text-zinc-400">
+            Screen picking is not available in this browser. Use Chrome, Edge, or Firefox.
+          </p>
+        )}
+
+        {!hasImage ? (
           <div
-            className={`relative border-3 border-dashed rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-12 text-center bg-white/70 backdrop-blur-xl hover:bg-white/80 transition-all duration-300 cursor-pointer transform hover:scale-[1.02] shadow-xl lg:w-[70%] lg:h-[50vh] lg:mx-auto mx-4 ${
-              dragActive 
-                ? 'border-indigo-500 bg-indigo-50/50 scale-105' 
-                : 'border-gray-300 hover:border-indigo-400'
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                triggerFileInput();
+              }
+            }}
+            className={`mx-auto max-w-2xl cursor-pointer rounded-[1.35rem] border-2 border-dashed p-10 text-center transition sm:p-12 ${
+              dragActive
+                ? 'scale-[1.01] border-sky-500 bg-sky-50/80 dark:border-cyan-400 dark:bg-cyan-950/30'
+                : 'border-zinc-300 bg-white/70 shadow-inner backdrop-blur-xl hover:border-violet-400 dark:border-white/15 dark:bg-white/[0.06] dark:hover:border-cyan-400/50'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={triggerFileInput}
+            data-aos="fade-up"
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            
-            {!imageUrl ? (
-              <div className="space-y-4 sm:space-y-6">
-                <div className="relative">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
-                    <svg className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                  </div>
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">+</span>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 sm:mb-3 font-raleway">
-                    Drop your image here
-                  </h3>
-                  <p className="text-base sm:text-lg text-gray-600 mb-1 sm:mb-2 font-inter">
-                    or click to browse files
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-500 font-inter">
-                    Supports JPG, PNG, GIF, WebP up to 10MB
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="relative group">
-                <div className="w-full max-w-[400px] h-[300px] sm:h-[350px] md:h-[400px] mx-auto bg-gray-100 rounded-2xl shadow-2xl overflow-hidden">
-                  <img
-                    src={imageUrl}
-                    alt="Uploaded"
-                    className="w-full h-full object-contain rounded-2xl transform group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-black/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <div className="flex gap-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setImageUrl('');
-                        setSelectedImage(null);
-                        setExtractedColors([]);
-                      }}
-                      className="bg-red-500 text-white rounded-full p-3 hover:bg-red-600 transition-colors transform hover:scale-110"
-                      title="Remove image"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        extractColorsFromImage(imageUrl);
-                      }}
-                      className="bg-green-500 text-white rounded-full p-3 hover:bg-green-600 transition-colors transform hover:scale-110"
-                      title="Re-extract colors"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Image Info Overlay */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] max-w-[calc(400px-2rem)]">
-                  <div className="bg-black/50 backdrop-blur-sm text-white p-3 rounded-xl text-center">
-                    <p className="text-sm font-medium">Image uploaded successfully</p>
-                    <p className="text-xs opacity-80">Click to upload a different image or hover for options</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-violet-600 text-white shadow-lg sm:h-20 sm:w-20">
+              <HiPhoto className="h-8 w-8 sm:h-10 sm:w-10" aria-hidden />
+            </div>
+            <h2 className="font-display text-xl font-semibold text-zinc-900 sm:text-2xl dark:text-white">
+              Drop an image here
+            </h2>
+            <p className="font-body mt-2 text-sm text-zinc-600 dark:text-zinc-400">or click to browse — JPG, PNG, GIF, WebP up to 10MB</p>
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-10" data-aos="fade-up">
+            {/* Preview column */}
+            <div className="lg:sticky lg:top-6">
+              <div className="overflow-hidden rounded-[1.35rem] border border-zinc-200/90 bg-white/80 shadow-lg backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/50">
+                <div className="relative flex max-h-[min(56vh,480px)] min-h-[220px] items-center justify-center bg-zinc-100/90 dark:bg-zinc-950/60">
+                  <img src={imageUrl} alt="Uploaded reference" className="max-h-[min(56vh,480px)] w-full object-contain p-3" />
+                </div>
+                <div className="flex flex-wrap gap-2 border-t border-zinc-200/80 p-4 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={triggerFileInput}
+                    className="font-ui inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 sm:flex-none"
+                  >
+                    <HiPhoto className="h-5 w-5" aria-hidden />
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => extractColorsFromImage(imageUrl)}
+                    disabled={isLoading}
+                    className="font-ui inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-white/10 dark:bg-zinc-800/80 dark:text-zinc-100 dark:hover:bg-zinc-800 sm:flex-none"
+                  >
+                    <HiArrowPath className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
+                    Re-extract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={removeImageOnly}
+                    className="font-ui inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 sm:flex-none"
+                  >
+                    <HiTrash className="h-5 w-5" aria-hidden />
+                    Remove
+                  </button>
+                </div>
+              </div>
+              {selectedImage?.name && (
+                <p className="font-code mt-3 truncate text-center text-xs text-zinc-500 dark:text-zinc-400 lg:text-left">
+                  {selectedImage.name}
+                </p>
+              )}
+            </div>
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="text-center py-12" data-aos="fade-in">
-            <div className="inline-flex items-center space-x-3">
-              <div className="relative">
-                <div className="w-12 h-12 border-4 border-indigo-200 rounded-full"></div>
-                <div className="absolute top-0 left-0 w-12 h-12 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-              </div>
-              <div className="text-left">
-                <p className="text-lg font-semibold text-gray-800">Extracting Colors</p>
-                <p className="text-sm text-gray-600">Analyzing your image...</p>
-              </div>
+            {/* Palette column */}
+            <div className="min-w-0 space-y-6">
+              {isLoading && (
+                <div className="flex items-center justify-center gap-3 rounded-2xl border border-zinc-200/80 bg-white/70 py-10 dark:border-white/10 dark:bg-zinc-900/40">
+                  <div className="relative h-11 w-11">
+                    <div className="absolute inset-0 rounded-full border-2 border-violet-200 dark:border-violet-900" />
+                    <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-violet-600 dark:border-t-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="font-ui font-semibold text-zinc-900 dark:text-white">Extracting colors</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Sampling your image…</p>
+                  </div>
+                </div>
+              )}
+
+              {!isLoading && !hasPalette && (
+                <p className="rounded-2xl border border-dashed border-zinc-200/90 bg-zinc-50/80 px-4 py-8 text-center text-sm text-zinc-600 dark:border-white/10 dark:bg-zinc-900/30 dark:text-zinc-400">
+                  No swatches yet. If extraction failed, try another image or use <strong>Pick from screen</strong>.
+                </p>
+              )}
+
+              {!isLoading && hasPalette && (
+                <>
+                  <div>
+                    <h2 className="font-display text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-white">
+                      Palette
+                    </h2>
+                    <p className="font-body mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      {extractedColors.length} colors — click a swatch to copy hex
+                    </p>
+                  </div>
+                  <div className="flex justify-center sm:justify-start">
+                    <CardListSlider viewMode={viewMode} setViewMode={setViewMode} />
+                  </div>
+
+                  {viewMode === 'cards' ? (
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                      {extractedColors.map((color, index) => (
+                        <div
+                          key={color.id ?? `${color.hex}-${index}`}
+                          className="group overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/90 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-zinc-900/60"
+                        >
+                        <div className="relative">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                copyToClipboard(color.hex, `hex-${color.id ?? index}`);
+                              }
+                            }}
+                            className="relative flex h-28 w-full cursor-pointer items-center justify-center transition group-hover:brightness-[1.02]"
+                            style={{ backgroundColor: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})` }}
+                            onClick={() => copyToClipboard(color.hex, `hex-${color.id ?? index}`)}
+                          >
+                            <span className="pointer-events-none rounded-full bg-black/55 px-2 py-1 font-code text-[10px] font-semibold uppercase tracking-wider text-white opacity-0 transition group-hover:opacity-100">
+                              Copy
+                            </span>
+                            {copiedColor === `hex-${color.id ?? index}` && (
+                              <span className="pointer-events-none absolute flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-zinc-900 shadow">
+                                <FaCheck className="text-emerald-600" aria-hidden />
+                                Copied
+                              </span>
+                            )}
+                            {color.source && (
+                              <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 font-code text-[10px] font-medium uppercase tracking-wide text-white/95">
+                                {color.source === 'eyedropper' ? 'Screen' : 'Image'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="pointer-events-none absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(color.hex, `hex-${color.id ?? index}`);
+                              }}
+                              className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm hover:bg-black/50"
+                              title="Copy"
+                            >
+                              <FaCopy className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(color);
+                              }}
+                              className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/35 backdrop-blur-sm hover:bg-black/50"
+                              title="Favorite"
+                            >
+                              {favorites.find((f) => f.hex === color.hex) ? (
+                                <FaHeart className="h-3.5 w-3.5 text-red-400" />
+                              ) : (
+                                <FaRegHeart className="h-3.5 w-3.5 text-white" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                          <div className="space-y-2 p-3">
+                            {color.name && <p className="font-ui text-xs font-medium text-zinc-500 dark:text-zinc-400">{color.name}</p>}
+                            <p className="font-code text-sm font-semibold text-zinc-900 dark:text-zinc-100">{color.hex}</p>
+                            <div className="font-code text-[11px] text-zinc-600 dark:text-zinc-400">
+                              <div className="flex justify-between gap-2">
+                                <span>RGB</span>
+                                <span>
+                                  {color.rgb.r}, {color.rgb.g}, {color.rgb.b}
+                                </span>
+                              </div>
+                              <div className="flex justify-between gap-2">
+                                <span>HSL</span>
+                                <span>
+                                  {color.hsl.h}°, {color.hsl.s}%, {color.hsl.l}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/90 shadow-md dark:border-white/10 dark:bg-zinc-900/60">
+                      <ul className="divide-y divide-zinc-200/80 dark:divide-white/10">
+                        {extractedColors.map((color, index) => (
+                          <li key={color.id ?? `${color.hex}-${index}`}>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-white/5"
+                              onClick={() => copyToClipboard(color.hex, `hex-${color.id ?? index}`)}
+                            >
+                              <span
+                                className="h-10 w-10 shrink-0 rounded-xl border border-zinc-200/80 shadow-inner dark:border-white/10"
+                                style={{ backgroundColor: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})` }}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="font-code text-sm font-semibold text-zinc-900 dark:text-zinc-100">{color.hex}</p>
+                                <p className="font-code text-xs text-zinc-500 dark:text-zinc-400">
+                                  RGB {color.rgb.r},{color.rgb.g},{color.rgb.b} · HSL {color.hsl.h}°, {color.hsl.s}%, {color.hsl.l}%
+                                </p>
+                              </div>
+                              {copiedColor === `hex-${color.id ?? index}` ? (
+                                <FaCheck className="shrink-0 text-emerald-600" aria-hidden />
+                              ) : (
+                                <FaCopy className="shrink-0 text-zinc-400" aria-hidden />
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* Favorites Section */}
+        {/* Favorites — full width below main */}
         {favorites.length > 0 && (
-          <div className="mb-8" data-aos="fade-up" data-aos-delay="100">
-            <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2 font-raleway">
-                Your Favorites
-              </h3>
-              <p className="text-gray-600 font-inter">
-                {favorites.length} saved colors
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+          <section className="mt-14 border-t border-zinc-200/80 pt-10 dark:border-white/10" data-aos="fade-up">
+            <h2 className="font-display text-center text-xl font-semibold text-zinc-900 dark:text-white">Saved favorites</h2>
+            <p className="font-body mt-1 text-center text-sm text-zinc-600 dark:text-zinc-400">{favorites.length} colors</p>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {favorites.map((color, index) => (
-                <div
-                  key={`fav-${index}`}
-                  className="group bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                <button
+                  key={`fav-${color.hex}-${index}`}
+                  type="button"
+                  className="group overflow-hidden rounded-2xl border border-zinc-200/90 bg-white text-left shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-zinc-900/60"
+                  onClick={() => copyToClipboard(color.hex, `fav-${index}`)}
                 >
-                  <div
-                    className="h-20 w-full cursor-pointer relative"
-                    style={{ backgroundColor: color.hex }}
-                    onClick={() => copyToClipboard(color.hex, `fav-${index}`)}
-                  >
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center">
-                      {copiedColor === `fav-${index}` && (
-                        <div className="bg-white/90 text-gray-800 px-2 py-1 rounded text-xs font-semibold">
-                          ✓ Copied!
-                        </div>
-                      )}
-                    </div>
+                  <div className="relative h-16 w-full" style={{ backgroundColor: color.hex }}>
+                    {copiedColor === `fav-${index}` && (
+                      <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white">
+                        Copied
+                      </span>
+                    )}
                   </div>
-                  
-                  <div className="p-3 text-center">
-                    <p className="font-mono text-xs font-bold text-gray-800 truncate">{color.hex}</p>
-                  </div>
-                </div>
+                  <p className="font-code truncate p-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">{color.hex}</p>
+                </button>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Extracted Colors */}
-        {extractedColors.length > 0 && (
-          <div className="space-y-8" data-aos="fade-up" data-aos-delay="200">
-            <div className="text-center">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 font-raleway">
-                Your Color Palette
-              </h2>
-              <p className="text-lg text-gray-600 font-inter">
-                {extractedColors.length} beautiful colors extracted from your image
-              </p>
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex justify-center">
-
-            <CardListSlider viewMode={viewMode} setViewMode={setViewMode} />
-            </div>
-            
-            {/* Color Display */}
-            {viewMode === 'cards' ? (
-              /* Card View */
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-                {extractedColors.map((color, index) => (
-                  <div
-                    key={index}
-                    className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
-                    data-aos="zoom-in"
-                    data-aos-delay={index * 100}
-                  >
-                    {/* Color Swatch */}
-                    <div
-                      className="h-32 w-full cursor-pointer relative overflow-hidden"
-                      style={{ 
-                        backgroundColor: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})`
-                      }}
-                      onClick={() => copyToClipboard(color.hex, `hex-${index}`)}
-                    >
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center">
-                        {copiedColor === `hex-${index}` && (
-                          <div className="bg-white/90 text-gray-800 px-3 py-2 rounded-lg font-semibold text-sm transform scale-100 animate-pulse">
-                            ✓ Copied!
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Action Buttons */}
-                      <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(color.hex, `hex-${index}`);
-                          }}
-                          className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-                          title="Copy color"
-                        >
-                          <FaCopy className="w-4 h-4 text-white" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(color);
-                          }}
-                          className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-                          title={favorites.find(f => f.hex === color.hex) ? 'Remove from favorites' : 'Add to favorites'}
-                        >
-                          {favorites.find(f => f.hex === color.hex) ? (
-                            <FaHeart className="w-4 h-4 text-red-500" />
-                          ) : (
-                            <FaRegHeart className="w-4 h-4 text-white" />
-                          )}
-                        </button>
-                      </div>
-                      
-                      {/* Source Badge */}
-                      {color.source && (
-                        <div className="absolute bottom-3 left-3">
-                          <span className="px-2 py-1 bg-black/50 text-white text-xs rounded-full">
-                            {color.source === 'eyedropper' ? 'Screen' : 'Image'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Color Information */}
-                    <div className="p-4 space-y-3">
-                      <div className="text-center mb-2">
-                        {color.name && (
-                          <p className="text-xs font-semibold text-gray-600 mb-1">{color.name}</p>
-                        )}
-                        <span className="font-mono text-sm font-bold text-gray-800">{color.hex}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <button
-                          onClick={() => copyToClipboard(color.hex, `hex-${index}`)}
-                          className="text-gray-400 hover:text-indigo-600 transition-colors p-1 hover:bg-indigo-50 rounded"
-                        >
-                          <FaCopy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => toggleFavorite(color)}
-                          className={`p-1 rounded transition-colors ${
-                            favorites.find(f => f.hex === color.hex)
-                              ? 'text-red-500 hover:text-red-600'
-                              : 'text-gray-400 hover:text-gray-600'
-                          }`}
-                        >
-                          {favorites.find(f => f.hex === color.hex) ? (
-                            <FaHeart className="w-4 h-4" />
-                          ) : (
-                            <FaRegHeart className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-2 text-xs text-gray-600 font-inter">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">RGB:</span>
-                          <span className="font-mono">{color.rgb.r}, {color.rgb.g}, {color.rgb.b}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">HSL:</span>
-                          <span className="font-mono">{color.hsl.h}°, {color.hsl.s}%, {color.hsl.l}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* List View */
-              <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl overflow-hidden">
-                <div className="divide-y divide-gray-200">
-                  {extractedColors.map((color, index) => (
-                    <div
-                      key={index}
-                      className="px-6 py-4 hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                      onClick={() => copyToClipboard(color.hex, `hex-${index}`)}
-                    >
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        {/* Color Swatch */}
-                        <div className="col-span-1">
-                          <div
-                            className="w-12 h-12 rounded-xl shadow-md border border-gray-200 group-hover:shadow-lg transition-shadow"
-                            style={{ backgroundColor: `rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})` }}
-                          ></div>
-                        </div>
-                        
-                        {/* Color Index */}
-                        <div className="col-span-1">
-                          <span className="text-sm font-semibold text-gray-500">#{index + 1}</span>
-                        </div>
-                        
-                        {/* HEX Code */}
-                        <div className="col-span-2">
-                          <span className="font-mono text-sm font-bold text-gray-800">{color.hex}</span>
-                        </div>
-                        
-                        {/* RGB Values */}
-                        <div className="col-span-3">
-                          <span className="font-mono text-sm text-gray-700">
-                            RGB({color.rgb.r}, {color.rgb.g}, {color.rgb.b})
-                          </span>
-                        </div>
-                        
-                        {/* HSL Values */}
-                        <div className="col-span-3">
-                          <span className="font-mono text-sm text-gray-700">
-                            HSL({color.hsl.h}°, {color.hsl.s}%, {color.hsl.l}%)
-                          </span>
-                        </div>
-                        
-                        {/* Actions */}
-                        <div className="col-span-2 flex gap-2 justify-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(color.hex, `hex-${index}`);
-                            }}
-                            className="text-gray-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-50 rounded-lg"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                          {copiedColor === `hex-${index}` && (
-                            <span className="text-green-600 text-sm font-semibold flex items-center">
-                              ✓ Copied
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-           
-           
-          </div>
-        )}
-
-        {/* Hidden canvas for color extraction */}
-        <canvas ref={canvasRef} className="hidden" />
+        <canvas ref={canvasRef} className="hidden" aria-hidden />
       </div>
-
-      {/* Custom styles for fonts */}
-      <style jsx global>{`
-        @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap");
-        @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800;900&display=swap");
-        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
-
-        .font-poppins {
-          font-family: "Poppins", sans-serif;
-        }
-
-        .font-raleway {
-          font-family: "Raleway", sans-serif;
-        }
-
-        .font-inter {
-          font-family: "Inter", sans-serif;
-        }
-      `}</style>
     </div>
   );
 }
 
-export default ImageColorPicker; 
+export default ImageColorPicker;

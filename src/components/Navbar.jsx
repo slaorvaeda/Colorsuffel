@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { IoHeartSharp } from "react-icons/io5";
+import { IoHeartSharp, IoMoonSharp, IoSunnySharp } from "react-icons/io5";
 import Navmenu from './Navbar/Navmenu';
 import Logoful from '../assets/colorsuffel.png';
 import DarkLogoful from '../assets/colorsuffeldark.png';
 import { Link } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext';
 
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -29,10 +31,22 @@ const Navbar = () => {
     <nav className="bg-gray-100 dark:bg-gray-900 sticky w-[95%] rounded-3xl mt-3 top-2 md:w-[90%] m-auto  z-20 md:top-2 top-0 start-0 border-b border-gray-200 dark:border-gray-600">
       <div className="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-2">
         <Link to='/' className="flex items-center space-x-3 rtl:space-x-reverse">
-          <img src={isOpen ? DarkLogoful : Logoful} className="h-12" alt="Logo" />
+          <img src={theme === 'dark' ? DarkLogoful : Logoful} className="h-12" alt="Logo" />
         </Link>
         
-        <div className="flex md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse">
+        <div className="flex md:order-2 items-center gap-2 rtl:space-x-reverse">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="inline-flex items-center justify-center p-2 w-10 h-10 text-sm text-gray-600 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              <IoSunnySharp className="w-5 h-5 text-amber-400" aria-hidden />
+            ) : (
+              <IoMoonSharp className="w-5 h-5" aria-hidden />
+            )}
+          </button>
           <Link to='/likeshades'>
             <button 
               type="button" 

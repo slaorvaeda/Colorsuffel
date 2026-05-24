@@ -1,94 +1,190 @@
-import React, { useState } from "react";
-import CardListSlider from "../components/CardListSlider";
-import { FaEye, FaExternalLinkAlt } from "react-icons/fa";
-import tinycolor from "tinycolor2";
+// @ts-nocheck — tinycolor + clipboard; plain JSX page.
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import CardListSlider from '../components/CardListSlider';
+import { FaEye } from 'react-icons/fa';
+import tinycolor from 'tinycolor2';
 
-const generateRandomColor = () => {
-  const letters = "0123456789ABCDEF";
-  let color = "#";
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
+/** Number of 5-color groups shown (24 × 5 = 120 swatches). */
+const PALETTE_GROUP_COUNT = 24;
+
+/** WCAG-style contrast ratio (tinycolor). */
+function ratio(a, b) {
+  return tinycolor.readability(tinycolor(a).toHexString(), tinycolor(b).toHexString());
+}
+
+function wrapHue(h) {
+  return ((h % 360) + 360) % 360;
+}
+
+function randInt(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function randFloat(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Darken or lighten `fg` until contrast vs `bg` >= `minRatio` (for text on canvas).
+ */
+function tuneTextOnBackground(fgHex, bgHex, minRatio = 4.5) {
+  let c = tinycolor(fgHex);
+  const bg = tinycolor(bgHex);
+  const bgLight = bg.isLight();
+  for (let i = 0; i < 42; i++) {
+    if (ratio(c, bg) >= minRatio) return c.toHexString();
+    c = bgLight ? c.darken(2) : c.lighten(2);
   }
-  return color;
-};
+  return (bgLight ? tinycolor('#09090b') : tinycolor('#fafafa')).toHexString();
+}
 
-const hexToRgb = (hex) => {
-  let r = parseInt(hex.slice(1, 3), 16);
-  let g = parseInt(hex.slice(3, 5), 16);
-  let b = parseInt(hex.slice(5, 7), 16);
+/**
+ * Darken / slightly desaturate accent until white (#fff) on accent meets `minRatio` (buttons, links on filled).
+ */
+function tuneAccentForWhiteOnFill(accentHex, minRatio = 4.5) {
+  let c = tinycolor(accentHex);
+  for (let i = 0; i < 45; i++) {
+    if (ratio('#ffffff', c) >= minRatio) return c.toHexString();
+    c = c.darken(2);
+    if (i % 5 === 4) c = c.desaturate(3);
+  }
+  return c.toHexString();
+}
+
+function hslHex(h, sPct, lPct) {
+  return tinycolor(`hsl(${Math.round(wrapHue(h))}, ${Math.min(100, Math.max(0, sPct))}%, ${Math.min(100, Math.max(0, lPct))}%)`).toHexString();
+}
+
+/** Separate canvas and card surfaces (real apps rarely use pure #fff only). */
+function liftSurfaceAboveCanvas(canvasHex, brandH, persona) {
+  const base = tinycolor(canvasHex);
+  const hsl = base.toHsl();
+  const h = Number.isFinite(hsl.h) ? wrapHue(hsl.h + randInt(-6, 6)) : wrapHue(brandH);
+  const sBump = persona === 'marketing' ? randInt(10, 22) : persona === 'saas' ? randInt(6, 14) : randInt(4, 12);
+  const targetL = Math.max(82, Math.min(94, (hsl.l ?? 0.97) * 100 - randFloat(3.5, 8)));
+  return hslHex(h, sBump, targetL);
+}
+
+/**
+ * One real-world–biased UI palette (hex), slot order matches preview:
+ * [0] primary text on canvas, [1] brand / CTA fill (white label safe),
+ * [2] secondary / muted text on canvas, [3] raised surface / band behind content, [4] app canvas background.
+ */
+function generateHarmoniousGroup() {
+  /** saas = conservative chroma; product = default; marketing = braver backgrounds */
+  const personaRoll = Math.random();
+  const persona = personaRoll < 0.38 ? 'saas' : personaRoll < 0.78 ? 'product' : 'marketing';
+
+  const brandH = Math.random() * 360;
+  const bgHue = wrapHue(brandH + randInt(-14, 14));
+  const bgSat =
+    persona === 'saas' ? randInt(3, 9) : persona === 'product' ? randInt(5, 13) : randInt(8, 18);
+  const c4 = hslHex(bgHue, bgSat, randInt(96, 99));
+
+  const textHue = wrapHue(brandH + randInt(-22, 22));
+  const textSat = persona === 'saas' ? randInt(5, 11) : randInt(6, 16);
+  let c0 = hslHex(textHue, textSat, randInt(11, 17));
+  c0 = tuneTextOnBackground(c0, c4, 4.52);
+
+  const mutedHue = wrapHue(brandH + randInt(-35, 35));
+  const mutedSat = randInt(9, 26);
+  let c2 = hslHex(mutedHue, mutedSat, randInt(43, 54));
+  c2 = tuneTextOnBackground(c2, c4, 3.65);
+
+  const accentStrategy = Math.random();
+  let accentHue = brandH;
+  if (accentStrategy < 0.12) accentHue = wrapHue(brandH + 180 + randInt(-18, 18));
+  else if (accentStrategy < 0.35) accentHue = wrapHue(brandH + randInt(-28, 28));
+  else if (accentStrategy < 0.55) accentHue = wrapHue(brandH + 150 + randInt(-12, 12));
+  else accentHue = wrapHue(brandH + randInt(-14, 14));
+
+  const accentSat =
+    persona === 'saas' ? randInt(46, 62) : persona === 'product' ? randInt(52, 72) : randInt(56, 82);
+  let accentL = persona === 'saas' ? randInt(40, 48) : persona === 'product' ? randInt(42, 52) : randInt(44, 54);
+  let c1 = hslHex(accentHue, accentSat, accentL);
+  c1 = tuneAccentForWhiteOnFill(c1, 4.52);
+
+  let c3 = liftSurfaceAboveCanvas(c4, brandH, persona);
+  if (ratio(c3, c4) < 1.06) {
+    c3 = tinycolor(c4).darken(4).toHexString();
+  }
+  if (ratio(c0, c3) < 3.2) {
+    c0 = tuneTextOnBackground(c0, c3, 3.25);
+  }
+
+  return [c0, c1, c2, c3, c4];
+}
+
+function buildAllGroups() {
+  return Array.from({ length: PALETTE_GROUP_COUNT }, () => generateHarmoniousGroup()).flat();
+}
+
+function colorToRgbLabel(hex) {
+  const t = tinycolor(hex);
+  if (!t.isValid()) return '';
+  const { r, g, b } = t.toRgb();
   return `rgb(${r}, ${g}, ${b})`;
-};
+}
 
-// Generate harmonious colors for a palette group
-const generateHarmoniousGroup = () => {
-  // Pick a random base HSL color
-  const baseHue = Math.floor(Math.random() * 360);
-  const baseSaturation = Math.floor(Math.random() * 21) + 70; 
-  const baseLightness = Math.floor(Math.random() * 16) + 50; 
-  // Helper to convert HSL to RGB string
-  const hslToRgbString = (h, s, l) => {
-    h = h / 360;
-    s = s / 100;
-    l = l / 100;
-    let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
-      const hue2rgb = (p, q, t) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1 / 6) return p + (q - p) * 6 * t;
-        if (t < 1 / 2) return q;
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-        return p;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r = hue2rgb(p, q, h + 1 / 3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1 / 3);
-    }
-    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-  };
-
-  // Generate 5 harmonious colors by varying hue/sat/lightness slightly
-  return Array(5).fill().map((_, i) => {
-    const hue = (baseHue + (i * 10) + Math.floor(Math.random() * 8 - 4)) % 360;
-    const sat = Math.min(100, Math.max(60, baseSaturation + Math.floor(Math.random() * 11 - 5)));
-    const light = Math.min(80, Math.max(45, baseLightness + Math.floor(Math.random() * 9 - 4)));
-    return hslToRgbString(hue, sat, light);
-  });
-};
-
-const PaletteGenerator = () => {
-  // Generate 42 groups of 5 harmonious colors (total 210)
-  const [colors, setColors] = useState(Array(42).fill().flatMap(generateHarmoniousGroup));
+function PaletteGenerator() {
+  const [colors, setColors] = useState(() => buildAllGroups());
   const [openGroupIdx, setOpenGroupIdx] = useState(null);
-  const [showInfo, setShowInfo] = useState(true); // Info box state
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'list'
+  const [viewMode, setViewMode] = useState('cards');
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPaletteForPreview, setSelectedPaletteForPreview] = useState(0);
+  const [copyFeedback, setCopyFeedback] = useState(null);
 
-  const generateNewPalette = () => {
-    setColors(Array(42).fill().flatMap(generateHarmoniousGroup));
-  };
+  const groupedColors = useMemo(() => {
+    const groups = [];
+    for (let i = 0; i < colors.length; i += 5) {
+      groups.push(colors.slice(i, i + 5));
+    }
+    return groups;
+  }, [colors]);
 
-  const copyToClipboard = (color) => {
-    navigator.clipboard.writeText(color);
-    alert(`Copied ${color} to clipboard!`);
-  };
+  const generateNewPalette = useCallback(() => {
+    setColors(buildAllGroups());
+    setOpenGroupIdx(null);
+    setCopyFeedback(null);
+  }, []);
+
+  const copyToClipboard = useCallback(async (hex) => {
+    try {
+      await navigator.clipboard.writeText(hex);
+      setCopyFeedback(hex);
+      setTimeout(() => setCopyFeedback((cur) => (cur === hex ? null : cur)), 1800);
+    } catch {
+      window.alert('Could not copy — check browser permissions.');
+    }
+  }, []);
+
+  const copyAllHex = useCallback(async (group) => {
+    const text = group.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback(`all:${group[0]}`);
+      setTimeout(() => setCopyFeedback((cur) => (cur === `all:${group[0]}` ? null : cur)), 1800);
+    } catch {
+      window.alert('Could not copy — check browser permissions.');
+    }
+  }, []);
 
   const openPreviewInNewTab = (paletteIndex) => {
     const palette = groupedColors[paletteIndex];
+    if (!palette?.length) return;
     const previewData = {
       palette: {
-        name: `Generated Palette ${paletteIndex + 1}`,
-        colors: palette
+        name: `Generated palette ${paletteIndex + 1}`,
+        colors: palette,
       },
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    localStorage.setItem('website-preview-data', JSON.stringify(previewData));
-    window.open('/website-preview-full', '_blank');
+    try {
+      localStorage.setItem('website-preview-data', JSON.stringify(previewData));
+      window.open('/website-preview-full', '_blank');
+    } catch {
+      window.alert('Could not save preview data.');
+    }
   };
 
   const showPalettePreview = (paletteIndex) => {
@@ -96,238 +192,248 @@ const PaletteGenerator = () => {
     setShowPreview(true);
   };
 
-  const groupedColors = [];
-  for (let i = 0; i < colors.length; i += 5) {
-    groupedColors.push(colors.slice(i, i + 5));
-  }
+  useEffect(() => {
+    if (openGroupIdx === null) return;
+    const close = (e) => {
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      if (t.closest('[data-palette-card]')) return;
+      setOpenGroupIdx(null);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [openGroupIdx]);
+
+  const contrastOn = (bg) => (tinycolor(bg).isLight() ? '#0f172a' : '#f8fafc');
 
   return (
-    <div className="flex flex-col items-center p-5">
-      
-      
-      <h1 className="text-5xl md:text-6xl font-bold mb-6 font-raleway bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
-          Color Palette Generator
-        </h1>
-      
-      {/* Generate New Button */}
-      <div className="flex justify-center mb-6">
+    <div className="font-body relative flex w-full flex-col items-center overflow-visible px-4 py-8 text-zinc-900 dark:text-zinc-100">
+      <h1 className="font-display mb-2 bg-gradient-to-r from-sky-600 via-violet-600 to-fuchsia-500 bg-clip-text text-center text-3xl font-semibold tracking-tight text-transparent sm:text-4xl md:text-5xl">
+        Color palette generator
+      </h1>
+      <p className="font-body mb-6 max-w-2xl text-center text-sm text-zinc-600 dark:text-zinc-400">
+        Each set is tuned like a small design system: <strong className="font-medium text-zinc-800 dark:text-zinc-200">canvas</strong>,{' '}
+        <strong className="font-medium text-zinc-800 dark:text-zinc-200">raised surface</strong>,{' '}
+        <strong className="font-medium text-zinc-800 dark:text-zinc-200">primary and muted text</strong> on canvas, and a{' '}
+        <strong className="font-medium text-zinc-800 dark:text-zinc-200">CTA accent</strong> checked for white-on-fill contrast.
+      </p>
+
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
         <button
+          type="button"
           onClick={generateNewPalette}
-          className="bg-white border-2 border-blue-500 text-blue-600 px-6 py-3 rounded-full hover:bg-blue-50 hover:border-blue-600 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold flex items-center space-x-2"
+          className="font-ui inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:brightness-110"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
-          <span>Generate New Palettes</span>
+          Regenerate all
+        </button>
+        <button
+          type="button"
+          onClick={() => openPreviewInNewTab(selectedPaletteForPreview)}
+          className="font-ui hidden rounded-2xl border border-zinc-200 bg-white/90 px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50 sm:inline-flex dark:border-white/10 dark:bg-zinc-900/70 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          Open current in full preview
         </button>
       </div>
-      
-      {/* View Mode Toggle */}
-      <CardListSlider viewMode={viewMode} setViewMode={setViewMode} />
 
-      {/* Custom styles for animations */}
+      {copyFeedback && (
+        <p className="font-ui mb-4 text-center text-sm font-medium text-emerald-600 dark:text-emerald-400" role="status">
+          Copied to clipboard
+        </p>
+      )}
+
+      <CardListSlider viewMode={viewMode} setViewMode={setViewMode} className="mb-8" />
+
       <style>
         {`
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
+          @keyframes paletteFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
           }
-          .animate-fadeIn {
-            animation: fadeIn 0.6s ease-out;
-          }
-          @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800;900&display=swap");
-          .font-raleway {
-            font-family: 'Raleway', sans-serif;
-          }
+          .palette-fade-in { animation: paletteFadeIn 0.45s ease-out; }
         `}
       </style>
 
       {viewMode === 'cards' ? (
-        /* Card View */
-        <div className="flex flex-wrap justify-center gap-8">
+        <div
+          className={`relative z-0 flex w-full max-w-[100vw] flex-wrap justify-center gap-6 overflow-visible md:gap-8 ${
+            openGroupIdx !== null ? 'pb-[min(42vh,24rem)]' : ''
+          }`}
+        >
           {groupedColors.map((group, index) => (
-            <div key={index} className="flex flex-col items-center border p-1 rounded-lg shadow-md border-gray-200 relative">
-              <div
-                className="flex bg-amber-200 rounded-lg overflow-hidden cursor-pointer"
-                onClick={() => setOpenGroupIdx(index)}
+            <div
+              key={`g-${index}-${group[0]}`}
+              data-palette-card
+              className={`relative flex flex-col items-center rounded-xl border border-zinc-200/90 bg-white/60 p-1 shadow-md backdrop-blur-sm transition-[box-shadow,z-index] dark:border-white/10 dark:bg-zinc-900/40 ${
+                openGroupIdx === index
+                  ? 'z-[200] shadow-2xl ring-2 ring-violet-400/40 dark:ring-cyan-400/35'
+                  : 'z-0'
+              }`}
+            >
+              <button
+                type="button"
+                data-palette-card-trigger
+                className="flex overflow-hidden rounded-lg ring-1 ring-zinc-200/80 transition hover:ring-violet-400/60 dark:ring-white/10 dark:hover:ring-cyan-400/40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenGroupIdx(openGroupIdx === index ? null : index);
+                }}
+                aria-expanded={openGroupIdx === index}
+                aria-label={`Palette ${index + 1}, open details`}
               >
-                <div className="flex rounded">
-                  {group.map((color, idx) => (
-                    <div
-                      key={idx}
-                      className="w-16 h-16 flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:w-20"
-                      style={{ backgroundColor: color }}
-                      onClick={e => { e.stopPropagation(); setOpenGroupIdx(index); }}
-                    >
-                      {/* <span className="text-white font-bold text-xs ">{color}</span>
-                      <span className="text-white text-xs">{hexToRgb(color)}</span> */}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Modal for showing all colors in the group */}
+                {group.map((hex, idx) => (
+                  <div
+                    key={`${hex}-${idx}`}
+                    className="h-14 w-14 shrink-0 transition-all duration-200 hover:w-16 sm:h-16 sm:w-16 sm:hover:w-[4.25rem]"
+                    style={{ backgroundColor: hex }}
+                    title={hex}
+                  />
+                ))}
+              </button>
+
               {openGroupIdx === index && (
-                <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-10 min-w-[300px]">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold text-gray-800">Palette #{index + 1}</h3>
+                <div
+                  data-palette-popover
+                  className="palette-fade-in absolute left-1/2 top-[calc(100%+0.5rem)] z-[210] w-[min(calc(100vw-2rem),22rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-zinc-200/90 bg-white p-4 shadow-2xl ring-1 ring-black/5 dark:border-white/10 dark:bg-zinc-900 dark:ring-white/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="font-ui text-sm font-semibold text-zinc-900 dark:text-white">Palette #{index + 1}</h3>
                     <button
+                      type="button"
                       onClick={() => setOpenGroupIdx(null)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-white"
+                      aria-label="Close"
                     >
                       ×
                     </button>
                   </div>
-                  <div className="space-y-2">
-                    {group.map((color, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-8 h-8 rounded border border-gray-200"
-                            style={{ backgroundColor: color }}
-                          ></div>
-                          <span className="font-mono text-sm">{color}</span>
+                  <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
+                    {group.map((hex, idx) => (
+                      <li key={`${hex}-row-${idx}`} className="flex items-center justify-between gap-2 rounded-lg bg-zinc-50 p-2 dark:bg-zinc-800/80">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="h-8 w-8 shrink-0 rounded border border-zinc-200 dark:border-white/10" style={{ backgroundColor: hex }} />
+                          <span className="font-code text-xs text-zinc-800 dark:text-zinc-200">{hex}</span>
                         </div>
                         <button
-                          onClick={() => copyToClipboard(color)}
-                          className="bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 hover:border-blue-600 transition-all duration-300 px-2 py-1 rounded text-sm font-medium shadow-sm"
+                          type="button"
+                          onClick={() => copyToClipboard(hex)}
+                          className="font-ui shrink-0 rounded-lg border border-sky-500/40 bg-white px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50 dark:bg-zinc-900 dark:text-cyan-300 dark:hover:bg-zinc-800"
                         >
                           Copy
                         </button>
-                      </div>
+                      </li>
                     ))}
+                  </ul>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyAllHex(group)}
+                      className="font-ui w-full rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-400"
+                    >
+                      Copy all (hex list)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => showPalettePreview(index)}
+                      className="font-ui w-full rounded-lg border border-zinc-200 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 dark:border-white/10 dark:text-zinc-100 dark:hover:bg-white/5"
+                    >
+                      Preview layout
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      const allColors = group.join('\n');
-                      navigator.clipboard.writeText(allColors);
-                      alert('All colors copied to clipboard!');
-                    }}
-                    className="w-full mt-3 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
-                  >
-                    Copy All Colors
-                  </button>
                 </div>
               )}
             </div>
           ))}
         </div>
       ) : (
-        /* List View */
         <div className="w-full max-w-4xl">
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="divide-y divide-gray-200">
+          <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white/80 shadow-lg backdrop-blur-sm dark:border-white/10 dark:bg-zinc-900/50">
+            <div className="divide-y divide-zinc-200 dark:divide-white/10">
               {groupedColors.map((group, index) => (
                 <div
-                  key={index}
-                  className="p-6 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-300 cursor-pointer group"
-                  onClick={() => setOpenGroupIdx(openGroupIdx === index ? null : index)}
+                  key={`list-${index}-${group[0]}`}
+                  className="p-5 transition hover:bg-zinc-50/80 dark:hover:bg-white/[0.04]"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-6">
-                      {/* Circular Color Palette */}
-                      <div className="flex -space-x-3">
-                        {group.map((color, idx) => (
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                      onClick={() => setOpenGroupIdx(openGroupIdx === index ? null : index)}
+                    >
+                      <div className="flex -space-x-2">
+                        {group.map((hex, idx) => (
                           <div
-                            key={idx}
-                            className="w-12 h-12 rounded-full border-3 border-white shadow-lg transform hover:scale-110 transition-all duration-300 group-hover:shadow-xl"
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          ></div>
+                            key={`dot-${hex}-${idx}`}
+                            className="h-11 w-11 rounded-full border-2 border-white shadow-md dark:border-zinc-900"
+                            style={{ backgroundColor: hex }}
+                            title={hex}
+                          />
                         ))}
                       </div>
-                      
-                      {/* Color Count */}
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium text-gray-600">{group.length} colors</span>
-                        <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse"></div>
+                      <div>
+                        <span className="font-ui text-sm font-medium text-zinc-800 dark:text-zinc-200">Palette #{index + 1}</span>
+                        <p className="font-code text-xs text-zinc-500 dark:text-zinc-400">{group.length} colors</p>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
+                    </button>
+
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          showPalettePreview(index);
-                        }}
-                        className="bg-white border-2 border-green-500 text-green-600 px-4 py-2 rounded-full hover:bg-green-50 hover:border-green-600 transition-all duration-300 transform hover:scale-105 shadow-md font-medium text-sm flex items-center space-x-2"
+                        type="button"
+                        onClick={() => showPalettePreview(index)}
+                        className="font-ui inline-flex items-center gap-2 rounded-full border border-emerald-500/50 bg-white px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50 dark:bg-zinc-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
                       >
-                        <FaEye className="w-4 h-4" />
-                        {/* <span>Preview</span> */}
+                        <FaEye className="h-4 w-4" aria-hidden />
+                        Preview
                       </button>
-                      {/* <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openPreviewInNewTab(index);
-                        }}
-                        className="bg-white border-2 border-purple-500 text-purple-600 px-4 py-2 rounded-full hover:bg-purple-50 hover:border-purple-600 transition-all duration-300 transform hover:scale-105 shadow-md font-medium text-sm flex items-center space-x-2"
-                      >
-                        <FaExternalLinkAlt className="w-4 h-4" />
-                        <span>Full Screen</span>
-                      </button> */}
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const allColors = group.join('\n');
-                          navigator.clipboard.writeText(allColors);
-                          alert('All colors copied to clipboard!');
-                        }}
-                        className="bg-white border-2 border-blue-500 text-blue-600 px-4 py-2 rounded-full hover:bg-blue-50 hover:border-blue-600 transition-all duration-300 transform hover:scale-105 shadow-md font-medium text-sm flex items-center space-x-2"
+                        type="button"
+                        onClick={() => copyAllHex(group)}
+                        className="font-ui inline-flex items-center gap-2 rounded-full border border-sky-500/50 bg-white px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-50 dark:bg-zinc-900 dark:text-sky-300 dark:hover:bg-sky-950/30"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        {/* <span>Copy All</span> */}
+                        Copy all
                       </button>
-                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center transform group-hover:rotate-180 transition-all duration-300 shadow-md">
-                        <svg
-                          className="w-4 h-4 text-white"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openPreviewInNewTab(index)}
+                        className="font-ui hidden rounded-full border border-violet-500/50 px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-50 sm:inline-flex dark:bg-zinc-900 dark:text-violet-300 dark:hover:bg-violet-950/30"
+                      >
+                        Full page
+                      </button>
                     </div>
                   </div>
-                  
-                  {/* Expanded view */}
+
                   {openGroupIdx === index && (
-                    <div className="mt-6 space-y-3 animate-fadeIn">
-                      {group.map((color, idx) => (
-                        <div 
-                          key={idx} 
-                          className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl hover:from-blue-50 hover:to-purple-50 transition-all duration-300 transform hover:scale-[1.02] cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(color);
+                    <div className="palette-fade-in mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-white/10">
+                      {group.map((hex, idx) => (
+                        <div
+                          key={`exp-${hex}-${idx}`}
+                          className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-zinc-50/90 p-3 transition hover:bg-zinc-100 dark:bg-zinc-800/60 dark:hover:bg-zinc-800"
+                          onClick={() => copyToClipboard(hex)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              copyToClipboard(hex);
+                            }
                           }}
                         >
-                          <div className="flex items-center space-x-4">
-                            <div
-                              className="w-12 h-12 rounded-full shadow-lg border-3 border-white transform hover:scale-110 transition-all duration-300"
-                              style={{ backgroundColor: color }}
-                            ></div>
-                            <div>
-                              <span className="font-mono text-sm font-bold text-gray-800">{color}</span>
-                              <div className="text-xs text-gray-500 mt-1">{hexToRgb(color)}</div>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="h-10 w-10 shrink-0 rounded-full border border-zinc-200 shadow dark:border-white/10" style={{ backgroundColor: hex }} />
+                            <div className="min-w-0">
+                              <p className="font-code text-sm font-semibold text-zinc-900 dark:text-zinc-100">{hex}</p>
+                              <p className="font-code text-xs text-zinc-500 dark:text-zinc-400">{colorToRgbLabel(hex)}</p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(color);
-                              }}
-                              className="bg-white border-2 border-green-500 text-green-600 px-3 py-1 rounded-full hover:bg-green-50 hover:border-green-600 transition-all duration-300 transform hover:scale-105 text-sm font-medium shadow-md flex items-center space-x-1"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                              <span>Copy</span>
-                            </button>
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          </div>
+                          <span className="font-ui shrink-0 text-xs font-medium text-sky-600 dark:text-cyan-400">Copy</span>
                         </div>
                       ))}
                     </div>
@@ -339,162 +445,138 @@ const PaletteGenerator = () => {
         </div>
       )}
 
-      {/* Preview Modal */}
       {showPreview && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-800">
-                Website Preview - Generated Palette {selectedPaletteForPreview + 1}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 p-4 dark:border-white/10">
+              <h3 className="font-display text-lg font-semibold text-zinc-900 dark:text-white">
+                Preview — palette {selectedPaletteForPreview + 1}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowPreview(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/10"
+                aria-label="Close preview"
               >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div 
-                className="p-8 rounded-xl border-2 border-gray-200"
-                style={{ backgroundColor: groupedColors[selectedPaletteForPreview][4] || '#f3f4f6' }}
+
+            <div className="max-h-[calc(90vh-140px)] overflow-y-auto p-4 sm:p-6">
+              <div
+                className="rounded-xl border border-zinc-200/80 p-6 sm:p-8 dark:border-white/10"
+                style={{ backgroundColor: groupedColors[selectedPaletteForPreview]?.[4] || '#f4f4f5' }}
               >
-                {/* Header */}
                 <header className="mb-8">
-                  <nav className="flex items-center justify-between mb-6">
-                    <div 
-                      className="text-2xl font-bold"
-                      style={{ color: groupedColors[selectedPaletteForPreview][0] || '#1f2937' }}
+                  <nav className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                    <div
+                      className="font-display text-xl font-bold sm:text-2xl"
+                      style={{ color: groupedColors[selectedPaletteForPreview]?.[0] || '#18181b' }}
                     >
                       BrandName
                     </div>
-                    <div className="flex gap-6">
-                      {['Home', 'About', 'Services', 'Contact'].map((item, index) => (
-                        <a
-                          key={index}
-                          href="#"
-                          className="font-medium hover:underline transition-colors"
-                          style={{ color: groupedColors[selectedPaletteForPreview][1] || '#374151' }}
+                    <div className="flex flex-wrap gap-4">
+                      {['Home', 'About', 'Services', 'Contact'].map((item, i) => (
+                        <span
+                          key={item}
+                          className="font-ui text-sm font-medium underline-offset-4 hover:underline"
+                          style={{ color: groupedColors[selectedPaletteForPreview]?.[1] || '#3f3f46' }}
                         >
                           {item}
-                        </a>
+                        </span>
                       ))}
                     </div>
                   </nav>
-                  
-                  <div className="text-center py-12">
-                    <h1 
-                      className="text-5xl font-bold mb-4"
-                      style={{ color: groupedColors[selectedPaletteForPreview][0] || '#1f2937' }}
+
+                  <div className="py-8 text-center">
+                    <h2
+                      className="font-display mb-3 text-3xl font-bold sm:text-4xl"
+                      style={{ color: groupedColors[selectedPaletteForPreview]?.[0] || '#18181b' }}
                     >
-                      Welcome to Our Website
-                    </h1>
-                    <p 
-                      className="text-xl mb-8 max-w-2xl mx-auto"
-                      style={{ color: groupedColors[selectedPaletteForPreview][2] || '#6b7280' }}
+                      Welcome
+                    </h2>
+                    <p
+                      className="font-body mx-auto mb-6 max-w-xl text-base"
+                      style={{ color: groupedColors[selectedPaletteForPreview]?.[2] || '#52525b' }}
                     >
-                      Experience the perfect blend of design and functionality with our carefully crafted color palette.
+                      Body copy uses the muted swatch so you can judge real-world contrast.
                     </p>
                     <button
-                      className="px-8 py-3 rounded-lg font-semibold text-white transition-all duration-300 hover:scale-105"
-                      style={{ backgroundColor: groupedColors[selectedPaletteForPreview][1] || '#3b82f6' }}
+                      type="button"
+                      className="font-ui rounded-lg px-6 py-2.5 text-sm font-semibold text-white shadow-md"
+                      style={{ backgroundColor: groupedColors[selectedPaletteForPreview]?.[1] || '#6366f1' }}
                     >
-                      Get Started
+                      Get started
                     </button>
                   </div>
                 </header>
 
-                {/* Content Sections */}
-                <div className="grid md:grid-cols-2 gap-8 mb-8">
-                  <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6">
-                    <h3 
-                      className="text-xl font-bold mb-3"
-                      style={{ color: groupedColors[selectedPaletteForPreview][0] || '#1f2937' }}
-                    >
-                      Feature One
-                    </h3>
-                    <p 
-                      className="text-gray-700"
-                      style={{ color: groupedColors[selectedPaletteForPreview][2] || '#6b7280' }}
-                    >
-                      This section demonstrates how text colors work with the selected palette. Notice the contrast and readability.
-                    </p>
-                  </div>
-                  
-                  <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6">
-                    <h3 
-                      className="text-xl font-bold mb-3"
-                      style={{ color: groupedColors[selectedPaletteForPreview][0] || '#1f2937' }}
-                    >
-                      Feature Two
-                    </h3>
-                    <p 
-                      className="text-gray-700"
-                      style={{ color: groupedColors[selectedPaletteForPreview][2] || '#6b7280' }}
-                    >
-                      Each color in the palette serves a specific purpose - from headings to body text to accents.
-                    </p>
-                  </div>
+                <div className="mb-8 grid gap-4 md:grid-cols-2">
+                  {['Feature one', 'Feature two'].map((title) => (
+                    <div key={title} className="rounded-xl border border-white/40 bg-white/75 p-5 backdrop-blur-sm dark:border-white/10 dark:bg-zinc-950/30">
+                      <h4
+                        className="font-ui mb-2 text-lg font-semibold"
+                        style={{ color: groupedColors[selectedPaletteForPreview]?.[0] || '#18181b' }}
+                      >
+                        {title}
+                      </h4>
+                      <p className="font-body text-sm" style={{ color: groupedColors[selectedPaletteForPreview]?.[2] || '#71717a' }}>
+                        Secondary text on a light surface.
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
-                {/* Call to Action */}
-                <div 
-                  className="text-center py-8 rounded-xl"
-                  style={{ backgroundColor: groupedColors[selectedPaletteForPreview][3] || '#9ca3af' }}
+                <div
+                  className="rounded-xl px-4 py-8 text-center sm:px-8"
+                  style={{ backgroundColor: groupedColors[selectedPaletteForPreview]?.[3] || '#a1a1aa' }}
                 >
-                  <h2 
-                    className="text-3xl font-bold mb-4"
-                    style={{ 
-                      color: tinycolor(groupedColors[selectedPaletteForPreview][3] || '#9ca3af').isLight() ? '#000000' : '#ffffff' 
-                    }}
+                  <h3
+                    className="font-display mb-2 text-2xl font-bold"
+                    style={{ color: contrastOn(groupedColors[selectedPaletteForPreview]?.[3]) }}
                   >
-                    Ready to Get Started?
-                  </h2>
-                  <p 
-                    className="mb-6 max-w-xl mx-auto"
-                    style={{ 
-                      color: tinycolor(groupedColors[selectedPaletteForPreview][3] || '#9ca3af').isLight() ? '#000000' : '#ffffff' 
-                    }}
-                  >
-                    Join thousands of satisfied customers who trust our platform.
+                    Ready to start?
+                  </h3>
+                  <p className="font-body mb-4 text-sm opacity-95" style={{ color: contrastOn(groupedColors[selectedPaletteForPreview]?.[3]) }}>
+                    Contrast-aware text on the band color.
                   </p>
                   <button
-                    className="px-6 py-2 rounded-lg font-semibold transition-all duration-300 hover:scale-105"
-                    style={{ 
-                      backgroundColor: groupedColors[selectedPaletteForPreview][0] || '#1f2937',
-                      color: tinycolor(groupedColors[selectedPaletteForPreview][0] || '#1f2937').isLight() ? '#000000' : '#ffffff'
+                    type="button"
+                    className="font-ui rounded-lg px-5 py-2 text-sm font-semibold shadow"
+                    style={{
+                      backgroundColor: groupedColors[selectedPaletteForPreview]?.[0] || '#18181b',
+                      color: contrastOn(groupedColors[selectedPaletteForPreview]?.[0] || '#18181b'),
                     }}
                   >
-                    Sign Up Now
+                    Sign up
                   </button>
                 </div>
               </div>
             </div>
-            
-            <div className="p-6 border-t border-gray-200 flex justify-between">
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 p-4 dark:border-white/10">
               <button
+                type="button"
                 onClick={() => setShowPreview(false)}
-                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="font-ui rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
               >
-                Close Preview
+                Close
               </button>
-              {/* <button
+              <button
+                type="button"
                 onClick={() => openPreviewInNewTab(selectedPaletteForPreview)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="font-ui rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 dark:bg-cyan-600 dark:hover:bg-cyan-500"
               >
-                <FaExternalLinkAlt />
-                Open Full Screen
-              </button> */}
+                Open full preview tab
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-};
+}
 
 export default PaletteGenerator;
-
